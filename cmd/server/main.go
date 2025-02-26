@@ -11,6 +11,7 @@ func main() {
 	// Инициализация хранилища MemStorage
 	storage := mem.NewStorage()
 
+	//Регистрация хэндлеров
 	mux := http.NewServeMux()
 	mux.HandleFunc("/update/", handlers.UpdateHandler(storage))
 
