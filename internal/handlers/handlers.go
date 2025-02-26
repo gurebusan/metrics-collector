@@ -16,7 +16,7 @@ type Getter interface {
 	GetCounter(name string) (int64, bool)
 }
 
-// UpdateGaugeHandler обрабатывает запросы на обновление метрик типа gauge.
+// UpdateHandler обрабатывает запросы на обновление метрик
 func UpdateHandler(updater Updater) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Разбираем путь запроса
