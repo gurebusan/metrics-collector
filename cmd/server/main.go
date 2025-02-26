@@ -12,8 +12,7 @@ func main() {
 	storage := mem.NewStorage()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/update/gauge/", handlers.UpdateGaugeHandler(storage))
-	mux.HandleFunc("/update/counter/", handlers.UpdateCounterHandler(storage))
+	mux.HandleFunc("/update/", handlers.UpdateHandler(storage))
 
 	//Запускаем сервер
 	if err := http.ListenAndServe(":8080", mux); err != nil {
