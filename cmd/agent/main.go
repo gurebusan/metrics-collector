@@ -8,7 +8,7 @@ import (
 
 func main() {
 	//Настройки агента
-	serverURL := "http://localhowt:8080"
+	serverURL := "http://localhost:8080"
 	contentType := "text/plain"
 	pollInterval := 2 * time.Second
 	reportInterval := 10 * time.Second

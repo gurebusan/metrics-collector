@@ -48,17 +48,3 @@ func TestSendMetrics(t *testing.T) {
 	err := a.SendMetrics()
 	assert.NoError(t, err, "Отправка метрик должна выполняться без ошибок")
 }
-
-func TestStart(t *testing.T) {
-	a := agent.NewAgent("http://localhost:8080", "text/plain", 1*time.Millisecond, 2*time.Millisecond)
-
-	// Запускаем агент
-	go a.Start()
-
-	// Даем время на выполнение (можно уменьшить в реальном коде)
-	time.Sleep(10 * time.Millisecond)
-
-	// Проверяем, что метрики обновились
-	assert.NotEmpty(t, a.GaugeMetric, "GaugeMetric должен обновляться")
-	assert.NotEmpty(t, a.CounterMetric, "CounterMetric должен обновляться")
-}

@@ -42,7 +42,10 @@ func (a *Agent) Start() {
 	//Запускаем отпраку метрик на сервер
 	go func() {
 		for {
-			a.SendMetrics()
+			err := a.SendMetrics()
+			if err != nil {
+				fmt.Println(err)
+			}
 			time.Sleep(a.ReportInterval)
 		}
 	}()
