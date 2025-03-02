@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/zetcan333/metrics-collector/internal/format/float"
 )
 
 //go:generate go run github.com/vektra/mockery/v2@v2.52.3 --name=Updater
@@ -86,7 +88,7 @@ func GetValueHandler(getter Getter) http.HandlerFunc {
 				http.Error(w, "Metric not found", http.StatusNotFound)
 				return
 			}
-			str := formatFloat(value)
+			str := float.FormatFloat(value)
 			fmt.Fprintf(w, "%s", str)
 		case "counter":
 			value, ok := getter.GetCounter(metricName)
@@ -134,14 +136,4 @@ func GetAllMetricsHandler(getter AllGetter) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		t.Execute(w, data)
 	}
-}
-
-// formatFloat форматирует float64, удаляя лишние нули.
-func formatFloat(value float64) string {
-	// Преобразуем число в строку с максимальной точностью.
-	str := strconv.FormatFloat(value, 'f', -1, 64)
-	// Удаляем лишние нули и точку, если они есть.
-	str = strings.TrimRight(str, "0")
-	str = strings.TrimRight(str, ".")
-	return str
 }
