@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 //go:generate go run github.com/vektra/mockery/v2@v2.52.3 --name=Updater
@@ -20,15 +23,10 @@ type Getter interface {
 // UpdateHandler обрабатывает запросы на обновление метрик
 func UpdateHandler(updater Updater) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Разбираем путь запроса
-		parts := strings.Split(r.URL.Path, "/")
-		if len(parts) != 5 {
-			http.Error(w, "Invalid request path", http.StatusNotFound)
-			return
-		}
-		metricType := parts[2]
-		metricName := parts[3]
-		metricValue := parts[4]
+
+		metricType := chi.URLParam(r, "type")
+		metricName := chi.URLParam(r, "name")
+		metricValue := chi.URLParam(r, "value")
 
 		// Проверяем, что имя метрики не пустое
 		if metricName == "" {
@@ -61,3 +59,37 @@ func UpdateHandler(updater Updater) http.HandlerFunc {
 
 	}
 }
+
+// GetValueHandler возвращает значние метрики
+func GetValueHandler(getter Getter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) != 4 {
+			http.Error(w, "Invalid request path", http.StatusNotFound)
+			return
+		}
+		metricType := parts[2]
+		metricName := parts[3]
+
+		switch metricType {
+		case "gauge":
+			value, ok := getter.GetGauge(metricName)
+			if !ok {
+				http.Error(w, "Metric not found", http.StatusNotFound)
+				return
+			}
+			fmt.Fprintf(w, "%.2f", value)
+		case "counter":
+			value, ok := getter.GetCounter(metricName)
+			if !ok {
+				http.Error(w, "Metric not found", http.StatusNotFound)
+				return
+			}
+			fmt.Fprintf(w, "%d", value)
+		default:
+			http.Error(w, "Invalid metric type", http.StatusBadRequest)
+		}
+	}
+}
+
+//GetAllHandler
