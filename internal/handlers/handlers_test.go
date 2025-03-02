@@ -110,3 +110,7 @@ func TestUpdateHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestGetValueHandler(t *testing.T) {
+
+}

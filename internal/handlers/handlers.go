@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-
-	"github.com/go-chi/chi/v5"
+	"strings"
 )
 
 //go:generate go run github.com/vektra/mockery/v2@v2.52.3 --name=Updater
@@ -22,10 +21,15 @@ type Getter interface {
 // UpdateHandler обрабатывает запросы на обновление метрик
 func UpdateHandler(updater Updater) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		metricType := chi.URLParam(r, "type")
-		metricName := chi.URLParam(r, "name")
-		metricValue := chi.URLParam(r, "value")
+		// Разбираем путь запроса
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) != 5 {
+			http.Error(w, "Invalid request path", http.StatusNotFound)
+			return
+		}
+		metricType := parts[2]
+		metricName := parts[3]
+		metricValue := parts[4]
 
 		// Проверяем, что имя метрики не пустое
 		if metricName == "" {
@@ -62,9 +66,13 @@ func UpdateHandler(updater Updater) http.HandlerFunc {
 // GetValueHandler возвращает значние метрики
 func GetValueHandler(getter Getter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		metricType := chi.URLParam(r, "type")
-		metricName := chi.URLParam(r, "name")
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) != 4 {
+			http.Error(w, "Invalid request path", http.StatusNotFound)
+			return
+		}
+		metricType := parts[2]
+		metricName := parts[3]
 
 		switch metricType {
 		case "gauge":
