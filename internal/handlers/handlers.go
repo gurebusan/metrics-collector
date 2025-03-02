@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -63,13 +62,9 @@ func UpdateHandler(updater Updater) http.HandlerFunc {
 // GetValueHandler возвращает значние метрики
 func GetValueHandler(getter Getter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Split(r.URL.Path, "/")
-		if len(parts) != 4 {
-			http.Error(w, "Invalid request path", http.StatusNotFound)
-			return
-		}
-		metricType := parts[2]
-		metricName := parts[3]
+
+		metricType := chi.URLParam(r, "type")
+		metricName := chi.URLParam(r, "name")
 
 		switch metricType {
 		case "gauge":
