@@ -86,7 +86,8 @@ func GetValueHandler(getter Getter) http.HandlerFunc {
 				http.Error(w, "Metric not found", http.StatusNotFound)
 				return
 			}
-			fmt.Fprintf(w, "%.2f", value)
+			str := formatFloat(value)
+			fmt.Fprintf(w, "%s", str)
 		case "counter":
 			value, ok := getter.GetCounter(metricName)
 			if !ok {
@@ -133,4 +134,14 @@ func GetAllMetricsHandler(getter AllGetter) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		t.Execute(w, data)
 	}
+}
+
+// formatFloat форматирует float64, удаляя лишние нули.
+func formatFloat(value float64) string {
+	// Преобразуем число в строку с максимальной точностью.
+	str := strconv.FormatFloat(value, 'f', -1, 64)
+	// Удаляем лишние нули и точку, если они есть.
+	str = strings.TrimRight(str, "0")
+	str = strings.TrimRight(str, ".")
+	return str
 }
