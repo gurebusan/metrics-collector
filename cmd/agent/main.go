@@ -23,6 +23,7 @@ func main() {
 
 	//Инициализация и запуск
 	agent := agent.NewAgent(serverURL, contentType, pollInterval, reportInterval)
+	fmt.Print(serverURL)
 	agent.Start()
 
 	select {}
@@ -31,21 +32,21 @@ func main() {
 func parseFlags() {
 	//Регистрируем флаги
 	var (
-		pollSec, reportSec int
-		addr               string
+		//pollSec, reportSec int
+		addr string
 	)
 
 	pflag.StringVarP(&addr, "a", "a", "localhost:8080", "Address and port for connection")
-	pflag.IntVarP(&pollSec, "p", "p", 2, "Set poll interval")
-	pflag.IntVarP(&reportSec, "r", "r", 10, "Set report interval")
+	pflag.DurationVarP(&pollInterval, "p", "p", 2*time.Second, "Set poll interval")
+	pflag.DurationVarP(&reportInterval, "r", "r", 10*time.Second, "Set report interval")
 
 	// Парсим флаги
 	pflag.Parse()
 
 	// Преобразуем флаги  в аргументы для агента
 	serverURL = "http://" + addr
-	pollInterval = time.Duration(pollSec) * time.Second
-	reportInterval = time.Duration(reportSec) * time.Second
+	//pollInterval = time.Duration(pollSec) * time.Second
+	//reportInterval = time.Duration(reportSec) * time.Second
 
 	// Проверяем, есть ли неизвестные флаги
 	flagSet := make(map[string]bool)
