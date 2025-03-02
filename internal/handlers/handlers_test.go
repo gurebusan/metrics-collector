@@ -21,6 +21,15 @@ func (m *mockStorage) UpdateGauge(name string, value float64) {
 func (m *mockStorage) UpdateCounter(name string, value int64) {
 	m.counter[name] += value
 }
+
+func (m *mockStorage) GetGauge(name string) (float64, bool) {
+	val, ok := m.gauge[name]
+	return val, ok
+}
+func (m *mockStorage) GetCounter(name string) (int64, bool) {
+	val, ok := m.counter[name]
+	return val, ok
+}
 func TestUpdateHandler(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -112,5 +121,62 @@ func TestUpdateHandler(t *testing.T) {
 }
 
 func TestGetValueHandler(t *testing.T) {
+	getter := &mockStorage{
+		gauge:   make(map[string]float64),
+		counter: make(map[string]int64),
+	}
+	getter.UpdateGauge("Alloc", 123.45)
+	getter.UpdateCounter("PollCount", 10)
 
+	tests := []struct {
+		name         string
+		path         string
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name:         "Valid gauge metric",
+			path:         "/value/gauge/Alloc",
+			expectedCode: http.StatusOK,
+			expectedBody: "123.45",
+		},
+		{
+			name:         "Valid counter metric",
+			path:         "/value/counter/PollCount",
+			expectedCode: http.StatusOK,
+			expectedBody: "10",
+		},
+		{
+			name:         "Unknown metric type",
+			path:         "/value/unknown/Test",
+			expectedCode: http.StatusBadRequest,
+			expectedBody: "Invalid metric type\n",
+		},
+		{
+			name:         "Non-existent metric",
+			path:         "/value/gauge/UnknownMetric",
+			expectedCode: http.StatusNotFound,
+			expectedBody: "Metric not found\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Создаём тестовый HTTP-запрос
+			req, err := http.NewRequest("GET", tt.path, nil)
+			assert.NoError(t, err)
+
+			// Создаём ResponseRecorder для получения ответа
+			rr := httptest.NewRecorder()
+
+			// Вызов хэндлера напрямую
+			handler := handlers.GetValueHandler(getter)
+			handler.ServeHTTP(rr, req)
+
+			// Проверяем код ответа
+			assert.Equal(t, tt.expectedCode, rr.Code, "unexpected status code")
+
+			// Проверяем тело ответа
+			assert.Equal(t, tt.expectedBody, rr.Body.String(), "unexpected response body")
+		})
+	}
 }

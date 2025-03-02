@@ -16,6 +16,7 @@ func main() {
 	r := chi.NewRouter()
 	r.Post("/update/{type}/{name}/{value}", handlers.UpdateHandler(storage))
 	r.Get("/value/{type}/{name}", handlers.GetValueHandler(storage))
+	r.Get("/", handlers.GetAllMetricsHandler(storage))
 
 	//Запускаем сервер
 	if err := http.ListenAndServe(":8080", r); err != nil {
