@@ -30,16 +30,20 @@ func main() {
 
 func parseFlags() {
 	//Регистрируем флаги
-	var pollSec, reportSec int
+	var (
+		pollSec, reportSec int
+		addr               string
+	)
 
-	pflag.StringVarP(&serverURL, "a", "a", "http://localhost:8080", "Address and port for connection")
+	pflag.StringVarP(&addr, "a", "a", "localhost:8080", "Address and port for connection")
 	pflag.IntVarP(&pollSec, "p", "p", 2, "Set poll interval")
 	pflag.IntVarP(&reportSec, "r", "r", 10, "Set report interval")
 
 	// Парсим флаги
 	pflag.Parse()
 
-	// Преобразуем секунды в time.Duration
+	// Преобразуем флаги  в аргументы для агента
+	serverURL = "http://" + addr
 	pollInterval = time.Duration(pollSec) * time.Second
 	reportInterval = time.Duration(reportSec) * time.Second
 
