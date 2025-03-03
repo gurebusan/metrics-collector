@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -16,6 +18,8 @@ func main() {
 	//Инициализация флагов
 	s := flags.NewServerFlags()
 
+	// Используем параметры
+
 	//Инициализация роутера, регистрация хэндлеров
 	r := chi.NewRouter()
 	r.Post("/update/{type}/{name}/{value}", handlers.UpdateHandler(storage))
@@ -23,7 +27,6 @@ func main() {
 	r.Get("/", handlers.GetAllMetricsHandler(storage))
 
 	//Запуск сервера с флагом
-	if err := http.ListenAndServe(s.ServerUrl, r); err != nil {
-		panic(err)
-	}
+	fmt.Println("Server running on:", s.Address)
+	log.Fatal(http.ListenAndServe(s.Address, r))
 }
