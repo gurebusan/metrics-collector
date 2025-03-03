@@ -15,7 +15,7 @@ type AgentFlags struct {
 }
 
 type ServerFlags struct {
-	ServerUrl string
+	ServerURL string
 }
 
 func NewAgentFlags() *AgentFlags {
@@ -73,5 +73,5 @@ func NewServerFlags() *ServerFlags {
 			os.Exit(1)
 		}
 	})
-	return &ServerFlags{ServerUrl: serverURL}
+	return &ServerFlags{ServerURL: serverURL}
 }

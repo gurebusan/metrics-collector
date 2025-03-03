@@ -23,7 +23,7 @@ func main() {
 	r.Get("/", handlers.GetAllMetricsHandler(storage))
 
 	//Запуск сервера с флагом
-	if err := http.ListenAndServe(s.ServerUrl, r); err != nil {
+	if err := http.ListenAndServe(s.ServerURL, r); err != nil {
 		panic(err)
 	}
 }
