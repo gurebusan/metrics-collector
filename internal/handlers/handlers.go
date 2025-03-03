@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zetcan333/metrics-collector/internal/format/float"
+	"github.com/zetcan333/metrics-collector/internal/lib/format/float"
 )
 
 //go:generate go run github.com/vektra/mockery/v2@v2.52.3 --name=Updater
