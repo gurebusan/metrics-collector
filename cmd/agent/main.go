@@ -11,7 +11,7 @@ func main() {
 	a := flags.NewAgentFlags()
 
 	//Инициализация и запуск
-	agent := agent.NewAgent(a.ServerURL, contentType, a.PollInterval, a.PollInterval)
+	agent := agent.NewAgent(a.ServerURL, contentType, a.PollInterval, a.ReportInterval)
 	agent.Start()
 
 	select {}
