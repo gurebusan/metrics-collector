@@ -1,28 +1,30 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
 	"runtime"
+	"sync"
 	"time"
 )
 
 // Структура агента
 type Agent struct {
 	ServerURL      string
-	ContentType    string
 	PollInterval   time.Duration
 	ReportInterval time.Duration
 	GaugeMetric    map[string]float64
 	CounterMetric  map[string]int64
+	client         http.Client
+	sync.Mutex
 }
 
 // Конструктор агента
-func NewAgent(serverURL, contentType string, pollInterval, reportInterval time.Duration) *Agent {
+func NewAgent(serverURL string, pollInterval, reportInterval time.Duration) *Agent {
 	return &Agent{
 		ServerURL:      serverURL,
-		ContentType:    contentType,
 		PollInterval:   pollInterval,
 		ReportInterval: reportInterval,
 		GaugeMetric:    make(map[string]float64),
@@ -31,22 +33,35 @@ func NewAgent(serverURL, contentType string, pollInterval, reportInterval time.D
 }
 
 // Запуск агента
-func (a *Agent) Start() {
-	//Запускаем сбор метрик
+func (a *Agent) Start(ctx context.Context) {
 	go func() {
+		ticker := time.NewTicker(a.PollInterval)
+		defer ticker.Stop()
 		for {
-			a.CollectMetrics()
-			time.Sleep(a.PollInterval)
+			select {
+			case <-ticker.C:
+				a.CollectMetrics()
+			case <-ctx.Done():
+				fmt.Println("Metrics collection stopped")
+				return
+			}
 		}
 	}()
-	//Запускаем отпраку метрик на сервер
+
 	go func() {
+		ticker := time.NewTicker(a.ReportInterval)
+		defer ticker.Stop()
 		for {
-			err := a.SendMetrics()
-			if err != nil {
-				fmt.Println(err)
+			select {
+			case <-ticker.C:
+				err := a.SendMetrics()
+				if err != nil {
+					fmt.Println(err)
+				}
+			case <-ctx.Done():
+				fmt.Println("Metrics reporting stopped")
+				return
 			}
-			time.Sleep(a.ReportInterval)
 		}
 	}()
 }
@@ -56,11 +71,11 @@ func (a *Agent) SendMetrics() error {
 	//Отпправляем gauge-метрики
 	for name, value := range a.GaugeMetric {
 		destination := fmt.Sprintf("%s/update/gauge/%s/%v", a.ServerURL, name, value)
-		resp, err := http.Post(destination, a.ContentType, nil)
+		resp, err := a.client.Post(destination, "text/plain", nil)
 		if err != nil {
 			return fmt.Errorf("failed to send gauge metric %s: %v", name, value)
 		}
-		defer resp.Body.Close()
+		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("server returned status %d for gauge metric %s", resp.StatusCode, name)
 		}
@@ -68,11 +83,11 @@ func (a *Agent) SendMetrics() error {
 	// Отпраялем counter-метрики
 	for name, value := range a.CounterMetric {
 		destination := fmt.Sprintf("%s/update/counter/%s/%v", a.ServerURL, name, value)
-		resp, err := http.Post(destination, a.ContentType, nil)
+		resp, err := http.Post(destination, "text/plain", nil)
 		if err != nil {
 			return fmt.Errorf("failed to send counter metric %s: %v", name, value)
 		}
-		defer resp.Body.Close()
+		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("server returned status %d for counter metric %s", resp.StatusCode, name)
 		}

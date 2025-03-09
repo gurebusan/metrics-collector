@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -9,8 +10,7 @@ import (
 )
 
 func main() {
-	//Настройки агента
-	contentType := "text/plain"
+	ctx := context.WithoutCancel(context.Background())
 	// Инициализируем флаги агента
 	a := flags.NewAgentFlags()
 
@@ -20,8 +20,8 @@ func main() {
 	fmt.Println("Report Interval:", a.ReportInterval)
 
 	log.Println("Agent started...")
-	agent := agent.NewAgent(a.ServerURL, contentType, a.PollInterval, a.ReportInterval)
-	agent.Start()
+	agent := agent.NewAgent(a.ServerURL, a.PollInterval, a.ReportInterval)
+	agent.Start(ctx)
 
 	select {}
 }

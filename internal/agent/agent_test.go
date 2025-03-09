@@ -12,7 +12,7 @@ import (
 
 func TestCollectMetrics(t *testing.T) {
 	//Инициализация агента
-	a := agent.NewAgent("http://localhost:8080", "text/plain", 2, 10)
+	a := agent.NewAgent("http://localhost:8080", 2, 10)
 
 	//Вызывем метод сбора метрик
 	a.CollectMetrics()
@@ -41,7 +41,7 @@ func TestSendMetrics(t *testing.T) {
 	}))
 	defer server.Close()
 
-	a := agent.NewAgent(server.URL, "text/plain", 2*time.Millisecond, 10*time.Microsecond)
+	a := agent.NewAgent(server.URL, 2*time.Millisecond, 10*time.Microsecond)
 	a.GaugeMetric["TestGauge"] = 123.45
 	a.CounterMetric["TestCounter"] = 100
 
