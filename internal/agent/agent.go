@@ -97,7 +97,7 @@ func (a *Agent) SendMetrics() error {
 	return nil
 }
 
-// Сбор метрик из rutime
+// Сбор метрик из runtime
 func (a *Agent) CollectMetrics() {
 	var rtm runtime.MemStats
 	runtime.ReadMemStats(&rtm)
