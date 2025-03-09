@@ -18,7 +18,7 @@ type Agent struct {
 	GaugeMetric    map[string]float64
 	CounterMetric  map[string]int64
 	client         http.Client
-	sync.Mutex
+	sync.RWMutex
 }
 
 // Конструктор агента
@@ -68,6 +68,8 @@ func (a *Agent) Start(ctx context.Context) {
 
 // Отправляем метрики на сервер
 func (a *Agent) SendMetrics() error {
+	a.RLock()
+	defer a.RUnlock()
 	//Отпправляем gauge-метрики
 	for name, value := range a.GaugeMetric {
 		destination := fmt.Sprintf("%s/update/gauge/%s/%v", a.ServerURL, name, value)
@@ -99,7 +101,8 @@ func (a *Agent) SendMetrics() error {
 func (a *Agent) CollectMetrics() {
 	var rtm runtime.MemStats
 	runtime.ReadMemStats(&rtm)
-
+	a.Lock()
+	defer a.Unlock()
 	// Обновляем gauge-метрики
 	a.GaugeMetric["Alloc"] = float64(rtm.Alloc)
 	a.GaugeMetric["BuckHashSys"] = float64(rtm.BuckHashSys)
