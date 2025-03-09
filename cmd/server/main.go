@@ -24,10 +24,10 @@ func main() {
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", h.GetAllMetricsHandler)
 		r.Route("/update", func(r chi.Router) {
-			r.Post("/{type}/{name}/{value}/", h.UpdateHandle)
+			r.Post("/{type}/{name}/{value}", h.UpdateHandle)
 		})
 		r.Route("/value", func(r chi.Router) {
-			r.Get("/{type}/{name}/", h.GetValueHandler)
+			r.Get("/{type}/{name}", h.GetValueHandler)
 		})
 	})
 	fmt.Println("Server running on:", s.Address)
