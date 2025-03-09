@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	//
+
 	storage := mem.NewStorage()
 	serverUsecase := usercase.NewSeverUsecase(storage)
 	h := handlers.NewServerHandler(serverUsecase)
