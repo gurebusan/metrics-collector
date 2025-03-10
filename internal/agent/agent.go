@@ -85,7 +85,7 @@ func (a *Agent) SendMetrics() error {
 	// Отпраялем counter-метрики
 	for name, value := range a.CounterMetric {
 		destination := fmt.Sprintf("%s/update/counter/%s/%v", a.ServerURL, name, value)
-		resp, err := http.Post(destination, "text/plain", nil)
+		resp, err := a.client.Post(destination, "text/plain", nil)
 		if err != nil {
 			return fmt.Errorf("failed to send counter metric %s: %v", name, value)
 		}

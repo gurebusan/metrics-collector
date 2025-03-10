@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
 	"github.com/zetcan333/metrics-collector/internal/repo/storage/mem"
@@ -20,16 +19,7 @@ func main() {
 
 	s := flags.NewServerFlags()
 
-	r := chi.NewRouter()
-	r.Route("/", func(r chi.Router) {
-		r.Get("/", h.GetAllMetricsHandler)
-		r.Route("/update", func(r chi.Router) {
-			r.Post("/{type}/{name}/{value}", h.UpdateHandle)
-		})
-		r.Route("/value", func(r chi.Router) {
-			r.Get("/{type}/{name}", h.GetValueHandler)
-		})
-	})
+	r := h.NewRouter()
 	fmt.Println("Server running on:", s.Address)
 	log.Fatal(http.ListenAndServe(s.Address, r))
 }

@@ -23,6 +23,19 @@ type ServerHandler struct {
 func NewServerHandler(suc ServerUseCase) *ServerHandler {
 	return &ServerHandler{serverUseCase: suc}
 }
+func (h *ServerHandler) NewRouter() *chi.Mux {
+	r := chi.NewRouter()
+	r.Route("/", func(r chi.Router) {
+		r.Get("/", h.GetAllMetricsHandler)
+		r.Route("/update", func(r chi.Router) {
+			r.Post("/{type}/{name}/{value}", h.UpdateHandle)
+		})
+		r.Route("/value", func(r chi.Router) {
+			r.Get("/{type}/{name}", h.GetValueHandler)
+		})
+	})
+	return r
+}
 
 // UpdateHandler обрабатывает запросы на обновление метрик
 func (h *ServerHandler) UpdateHandle(w http.ResponseWriter, r *http.Request) {
