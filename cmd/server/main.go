@@ -1,29 +1,25 @@
 package main
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
-	"github.com/zetcan333/metrics-collector/internal/storage/mem"
+	"github.com/zetcan333/metrics-collector/internal/repo/storage/mem"
+	"github.com/zetcan333/metrics-collector/internal/usercase"
 )
 
 func main() {
-	// Инициализация хранилища MemStorage
-	storage := mem.NewStorage()
 
-	//Инициализация флагов
+	storage := mem.NewStorage()
+	serverUsecase := usercase.NewSeverUsecase(storage)
+	h := handlers.NewServerHandler(serverUsecase)
+
 	s := flags.NewServerFlags()
 
-	//Инициализация роутера, регистрация хэндлеров
-	r := chi.NewRouter()
-	r.Post("/update/{type}/{name}/{value}", handlers.UpdateHandler(storage))
-	r.Get("/value/{type}/{name}", handlers.GetValueHandler(storage))
-	r.Get("/", handlers.GetAllMetricsHandler(storage))
-
-	//Запуск сервера с флагом
-	if err := http.ListenAndServe(s.ServerURL, r); err != nil {
-		panic(err)
-	}
+	r := h.NewRouter()
+	fmt.Println("Server running on:", s.Address)
+	log.Fatal(http.ListenAndServe(s.Address, r))
 }
