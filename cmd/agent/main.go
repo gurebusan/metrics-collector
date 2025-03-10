@@ -1,20 +1,17 @@
 package main
 
 import (
-	"time"
-
 	"github.com/zetcan333/metrics-collector/internal/agent"
+	"github.com/zetcan333/metrics-collector/internal/flags"
 )
 
 func main() {
 	//Настройки агента
-	serverURL := "http://localhost:8080"
 	contentType := "text/plain"
-	pollInterval := 2 * time.Second
-	reportInterval := 10 * time.Second
+	a := flags.NewAgentFlags()
 
 	//Инициализация и запуск
-	agent := agent.NewAgent(serverURL, contentType, pollInterval, reportInterval)
+	agent := agent.NewAgent(a.ServerURL, contentType, a.PollInterval, a.ReportInterval)
 	agent.Start()
 
 	select {}
