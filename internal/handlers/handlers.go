@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+//go:generate go run github.com/vektra/mockery/v2@v2.52.3 --name=Updater
 type Updater interface {
 	UpdateGauge(name string, value float64)
 	UpdateCounter(name string, value int64)
