@@ -1,9 +1,13 @@
 package handlers
 
 import (
+	"fmt"
+	"html/template"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/zetcan333/metrics-collector/internal/format/float"
 )
 
 //go:generate go run github.com/vektra/mockery/v2@v2.52.3 --name=Updater
@@ -15,6 +19,10 @@ type Updater interface {
 type Getter interface {
 	GetGauge(name string) (float64, bool)
 	GetCounter(name string) (int64, bool)
+}
+type AllGetter interface {
+	GetAllCounter() map[string]int64
+	GetAllGauge() map[string]float64
 }
 
 // UpdateHandler обрабатывает запросы на обновление метрик
@@ -59,5 +67,73 @@ func UpdateHandler(updater Updater) http.HandlerFunc {
 
 		w.WriteHeader(http.StatusOK)
 
+	}
+}
+
+// GetValueHandler возвращает значние метрики
+func GetValueHandler(getter Getter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) != 4 {
+			http.Error(w, "Invalid request path", http.StatusNotFound)
+			return
+		}
+		metricType := parts[2]
+		metricName := parts[3]
+
+		switch metricType {
+		case "gauge":
+			value, ok := getter.GetGauge(metricName)
+			if !ok {
+				http.Error(w, "Metric not found", http.StatusNotFound)
+				return
+			}
+			str := float.FormatFloat(value)
+			fmt.Fprintf(w, "%s", str)
+		case "counter":
+			value, ok := getter.GetCounter(metricName)
+			if !ok {
+				http.Error(w, "Metric not found", http.StatusNotFound)
+				return
+			}
+			fmt.Fprintf(w, "%d", value)
+		default:
+			http.Error(w, "Invalid metric type", http.StatusBadRequest)
+		}
+	}
+}
+
+// GetAllMetricsHandler возвращает все метрики в формате HTML
+func GetAllMetricsHandler(getter AllGetter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tmpl := `<html>
+		<head><title>Metrics</title></head>
+		<body>
+			<h1>Metrics</h1>
+			<ul>
+			{{ range $key, $value := .Gauges }}
+				<li>Gauge {{$key}}: {{ printf "%.2f" $value }}</li>
+			{{ end }}
+			{{ range $key, $value := .Counters }}
+				<li>Counter {{$key}}: {{$value}}</li>
+			{{ end }}
+			</ul>
+		</body>
+		</html>`
+		data := struct {
+			Gauges   map[string]float64
+			Counters map[string]int64
+		}{
+			Gauges:   getter.GetAllGauge(),
+			Counters: getter.GetAllCounter(),
+		}
+		t, err := template.New("metrics").Parse(tmpl)
+		if err != nil {
+			http.Error(w, "Error rendering template", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		t.Execute(w, data)
 	}
 }
