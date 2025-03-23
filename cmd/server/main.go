@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
 	"github.com/zetcan333/metrics-collector/internal/repo/storage/mem"
@@ -23,10 +25,8 @@ func main() {
 
 	serverFlags := flags.NewServerFlags()
 
-	r := server.NewServer(log, handlers, serverFlags, backup)
+	server := server.NewServer(log, handlers, serverFlags, backup)
 
-	/*fmt.Println("Server running on:", s.Address)
-	if err := http.ListenAndServe(s.Address, r); err != nil {
-		log.Error("failed to start server")
-	}*/
+	ctx := context.WithoutCancel(context.Background())
+	server.Start(ctx)
 }
