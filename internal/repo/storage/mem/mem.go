@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/zetcan333/metrics-collector/internal/models"
@@ -81,15 +80,10 @@ func (s *MemStorage) GetAllCounters() map[string]int64 {
 	return all
 }
 
-func (s *MemStorage) SaveToFile() error {
+func (s *MemStorage) SaveToFile(path string) error {
 	s.RLock()
 	defer s.RUnlock()
 
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	path := filepath.Join(wd, "../../backup/metrics-db.json")
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -106,15 +100,10 @@ func (s *MemStorage) SaveToFile() error {
 
 }
 
-func (s *MemStorage) LoadFromFile() error {
+func (s *MemStorage) LoadFromFile(path string) error {
 	s.Lock()
 	defer s.Unlock()
 
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	path := filepath.Join(wd, "../../backup/metrics-db.json")
 	file, err := os.Open(path)
 
 	if err != nil {

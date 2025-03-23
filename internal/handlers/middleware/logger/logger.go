@@ -25,7 +25,7 @@ func New(log *zap.Logger) func(next http.Handler) http.Handler {
 
 			t1 := time.Now()
 			defer func() {
-				entry.Info("request completed",
+				entry.Sugar().Infoln("request completed",
 					zap.Int("status", ww.Status()),
 					zap.Int("bytes", ww.BytesWritten()),
 					zap.String("duration", time.Since(t1).String()),

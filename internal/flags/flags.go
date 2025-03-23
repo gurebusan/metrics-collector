@@ -15,7 +15,10 @@ type AgentFlags struct {
 }
 
 type ServerFlags struct {
-	Address string
+	Address         string
+	StoreInterval   time.Duration
+	FileStoragePath string
+	Restore         bool
 }
 
 func NewAgentFlags() *AgentFlags {
@@ -71,17 +74,39 @@ func NewAgentFlags() *AgentFlags {
 func NewServerFlags() *ServerFlags {
 	// Значение по умолчанию
 	addr := "localhost:8080"
-
-	// Проверяем переменную окружения
 	if envAddr := os.Getenv("ADDRESS"); envAddr != "" {
 		addr = envAddr
 	}
 
-	// Добавляем поддержку флага (он имеет меньший приоритет, чем env)
+	storeSec := 300
+	if envStore := os.Getenv("STORE_INTERVAL"); envStore != "" {
+		if val, err := strconv.Atoi(envStore); err == nil {
+			storeSec = val
+		}
+	}
+
+	fileStoragePath := "/backup/metrcs_db"
+	if envPath := os.Getenv("FILE_STORAGE_PATH"); envPath != "" {
+		fileStoragePath = envPath
+	}
+
+	restore := false
+	if envRestore := os.Getenv("RESTORE"); envRestore == "true" {
+		restore = true
+	}
+
 	pflag.StringVarP(&addr, "a", "a", addr, "Address and port for the server")
+	pflag.IntVarP(&storeSec, "i", "i", storeSec, "Store interval for backup")
+	pflag.StringVarP(&fileStoragePath, "f", "f", fileStoragePath, "File storage path for backup")
+	pflag.BoolVarP(&restore, "r", "r", restore, "Use for load db fron file")
 	pflag.Parse()
 
+	storeInterval := time.Duration(storeSec) * time.Second
+
 	return &ServerFlags{
-		Address: addr,
+		Address:         addr,
+		StoreInterval:   storeInterval,
+		FileStoragePath: fileStoragePath,
+		Restore:         restore,
 	}
 }
