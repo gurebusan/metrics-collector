@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -24,6 +25,11 @@ func (b *BackupUsecase) SaveBackup(relativePath string) error {
 		return err
 	}
 	path := filepath.Join(wd, relativePath)
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create backup directory: %w", err)
+	}
 
 	if err = b.mnger.SaveToFile(path); err != nil {
 		return err
