@@ -19,10 +19,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type A interface {
-	Some()
-}
-
 type Server struct {
 	log    *zap.Logger
 	router *chi.Mux
