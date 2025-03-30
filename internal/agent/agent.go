@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -26,6 +27,39 @@ type Agent struct {
 	sync.RWMutex
 }
 
+type MetricsSnapshot struct {
+	Alloc         float64
+	BuckHashSys   float64
+	Frees         float64
+	GCCPUFraction float64
+	GCSys         float64
+	HeapAlloc     float64
+	HeapIdle      float64
+	HeapInuse     float64
+	HeapObjects   float64
+	HeapReleased  float64
+	HeapSys       float64
+	LastGC        float64
+	Lookups       float64
+	MCacheInuse   float64
+	MCacheSys     float64
+	MSpanInuse    float64
+	MSpanSys      float64
+	Mallocs       float64
+	NextGC        float64
+	NumForcedGC   float64
+	NumGC         float64
+	OtherSys      float64
+	PauseTotalNs  float64
+	StackInuse    float64
+	StackSys      float64
+	Sys           float64
+	TotalAlloc    float64
+
+	RandomValue float64
+	PollCount   int64
+}
+
 // Конструктор агента
 func NewAgent(serverURL string, pollInterval, reportInterval time.Duration) *Agent {
 	return &Agent{
@@ -34,6 +68,11 @@ func NewAgent(serverURL string, pollInterval, reportInterval time.Duration) *Age
 		ReportInterval: reportInterval,
 		Metrics:        make(map[string]models.Metrics),
 	}
+}
+
+func (a *Agent) NextPollCount() int64 {
+	a.PollCount++
+	return a.PollCount
 }
 
 // Запуск агента
@@ -112,99 +151,72 @@ func (a *Agent) SendMetrics() error {
 
 // Сбор метрик из runtime
 func (a *Agent) CollectMetrics() {
+
+	snapshot := a.CollectFlat()
+
+	a.Lock()
+	defer a.Unlock()
+
+	v := reflect.ValueOf(snapshot)
+	t := v.Type()
+
+	for i := range v.NumField() {
+		field := v.Field(i)
+		name := t.Field(i).Name
+
+		// Пропускаем PollCount - это counter
+		if name == "PollCount" {
+			delta := field.Int()
+			a.Metrics[name] = models.Metrics{ID: name, MType: models.Counter, Delta: &delta}
+			continue
+		}
+
+		// Все остальные поля считаем gauge
+		if field.Kind() == reflect.Float64 {
+			value := field.Float()
+			a.Metrics[name] = models.Metrics{ID: name, MType: models.Gauge, Value: &value}
+		}
+	}
+}
+
+func (a *Agent) CollectFlat() MetricsSnapshot {
 	var rtm runtime.MemStats
 	runtime.ReadMemStats(&rtm)
 	a.Lock()
 	defer a.Unlock()
 
-	alloc := float64(rtm.Alloc)
-	a.Metrics["Alloc"] = models.Metrics{ID: "Alloc", MType: models.Gauge, Value: &alloc}
+	return MetricsSnapshot{
+		Alloc:         float64(rtm.Alloc),
+		BuckHashSys:   float64(rtm.BuckHashSys),
+		Frees:         float64(rtm.Frees),
+		GCCPUFraction: float64(rtm.GCCPUFraction),
+		GCSys:         float64(rtm.GCSys),
+		HeapAlloc:     float64(rtm.HeapAlloc),
+		HeapIdle:      float64(rtm.HeapIdle),
+		HeapInuse:     float64(rtm.HeapInuse),
+		HeapObjects:   float64(rtm.HeapObjects),
+		HeapReleased:  float64(rtm.HeapReleased),
+		HeapSys:       float64(rtm.HeapSys),
+		LastGC:        float64(rtm.LastGC),
+		Lookups:       float64(rtm.Lookups),
+		MCacheInuse:   float64(rtm.MCacheInuse),
+		MCacheSys:     float64(rtm.MCacheSys),
+		MSpanInuse:    float64(rtm.MSpanInuse),
+		MSpanSys:      float64(rtm.MSpanSys),
+		Mallocs:       float64(rtm.Mallocs),
+		NextGC:        float64(rtm.NextGC),
+		NumForcedGC:   float64(rtm.NumForcedGC),
+		NumGC:         float64(rtm.NumGC),
+		OtherSys:      float64(rtm.OtherSys),
+		PauseTotalNs:  float64(rtm.PauseTotalNs),
+		StackInuse:    float64(rtm.StackInuse),
+		StackSys:      float64(rtm.StackSys),
+		Sys:           float64(rtm.Sys),
+		TotalAlloc:    float64(rtm.TotalAlloc),
 
-	buckHashSys := float64(rtm.Frees)
-	a.Metrics["BuckHashSys"] = models.Metrics{ID: "BuckHashSys", MType: models.Gauge, Value: &buckHashSys}
-
-	frees := float64(rtm.Frees)
-	a.Metrics["Frees"] = models.Metrics{ID: "Frees", MType: models.Gauge, Value: &frees}
-
-	gCCPUFraction := rtm.GCCPUFraction
-	a.Metrics["GCCPUFraction"] = models.Metrics{ID: "GCCPUFraction", MType: models.Gauge, Value: &gCCPUFraction}
-
-	gCSys := float64(rtm.GCSys)
-	a.Metrics["GCSys"] = models.Metrics{ID: "GCSys", MType: models.Gauge, Value: &gCSys}
-
-	heapAlloc := float64(rtm.HeapAlloc)
-	a.Metrics["HeapAlloc"] = models.Metrics{ID: "HeapAlloc", MType: models.Gauge, Value: &heapAlloc}
-
-	heapIdle := float64(rtm.HeapIdle)
-	a.Metrics["HeapIdle"] = models.Metrics{ID: "HeapIdle", MType: models.Gauge, Value: &heapIdle}
-
-	heapInuse := float64(rtm.HeapInuse)
-	a.Metrics["HeapInuse"] = models.Metrics{ID: "HeapInuse", MType: models.Gauge, Value: &heapInuse}
-
-	heapObjects := float64(rtm.HeapObjects)
-	a.Metrics["HeapObjects"] = models.Metrics{ID: "HeapObjects", MType: models.Gauge, Value: &heapObjects}
-
-	heapReleased := float64(rtm.HeapReleased)
-	a.Metrics["HeapReleased"] = models.Metrics{ID: "HeapReleased", MType: models.Gauge, Value: &heapReleased}
-
-	heapSys := float64(rtm.HeapSys)
-	a.Metrics["HeapSys"] = models.Metrics{ID: "HeapSys", MType: models.Gauge, Value: &heapSys}
-
-	lastGC := float64(rtm.LastGC)
-	a.Metrics["LastGC"] = models.Metrics{ID: "LastGC", MType: models.Gauge, Value: &lastGC}
-
-	lookups := float64(rtm.Lookups)
-	a.Metrics["Lookups"] = models.Metrics{ID: "Lookups", MType: models.Gauge, Value: &lookups}
-
-	mCacheInuse := float64(rtm.MCacheInuse)
-	a.Metrics["MCacheInuse"] = models.Metrics{ID: "MCacheInuse", MType: models.Gauge, Value: &mCacheInuse}
-
-	mCacheSys := float64(rtm.MCacheSys)
-	a.Metrics["MCacheSys"] = models.Metrics{ID: "MCacheSys", MType: models.Gauge, Value: &mCacheSys}
-
-	mSpanInuse := float64(rtm.MSpanInuse)
-	a.Metrics["MSpanInuse"] = models.Metrics{ID: "MSpanInuse", MType: models.Gauge, Value: &mSpanInuse}
-
-	mSpanSys := float64(rtm.MSpanSys)
-	a.Metrics["MSpanSys"] = models.Metrics{ID: "MSpanSys", MType: models.Gauge, Value: &mSpanSys}
-
-	mallocs := float64(rtm.Mallocs)
-	a.Metrics["Mallocs"] = models.Metrics{ID: "Mallocs", MType: models.Gauge, Value: &mallocs}
-
-	nextGC := float64(rtm.NextGC)
-	a.Metrics["NextGC"] = models.Metrics{ID: "NextGC", MType: models.Gauge, Value: &nextGC}
-
-	numForcedGC := float64(rtm.NumForcedGC)
-	a.Metrics["NumForcedGC"] = models.Metrics{ID: "NumForcedGC", MType: models.Gauge, Value: &numForcedGC}
-
-	numGC := float64(rtm.NumGC)
-	a.Metrics["NumGC"] = models.Metrics{ID: "NumGC", MType: models.Gauge, Value: &numGC}
-
-	otherSys := float64(rtm.OtherSys)
-	a.Metrics["OtherSys"] = models.Metrics{ID: "OtherSys", MType: models.Gauge, Value: &otherSys}
-
-	pauseTotalNs := float64(rtm.PauseTotalNs)
-	a.Metrics["PauseTotalNs"] = models.Metrics{ID: "PauseTotalNs", MType: models.Gauge, Value: &pauseTotalNs}
-
-	stackInuse := float64(rtm.StackInuse)
-	a.Metrics["StackInuse"] = models.Metrics{ID: "StackInuse", MType: models.Gauge, Value: &stackInuse}
-
-	stackSys := float64(rtm.StackSys)
-	a.Metrics["StackSys"] = models.Metrics{ID: "StackSys", MType: models.Gauge, Value: &stackSys}
-
-	sys := float64(rtm.Sys)
-	a.Metrics["Sys"] = models.Metrics{ID: "Sys", MType: models.Gauge, Value: &sys}
-
-	totalAlloc := float64(rtm.TotalAlloc)
-	a.Metrics["TotalAlloc"] = models.Metrics{ID: "TotalAlloc", MType: models.Gauge, Value: &totalAlloc}
-
-	randomValue := rand.Float64()
-	a.Metrics["RandomValue"] = models.Metrics{ID: "RandomValue", MType: models.Gauge, Value: &randomValue}
-
-	pollCount := a.PollCount
-	a.Metrics["PollCount"] = models.Metrics{ID: "PollCount", MType: models.Counter, Delta: &pollCount}
-
-	a.PollCount++
+		RandomValue: rand.Float64(),
+		PollCount:   a.NextPollCount(),
+	}
 }
 
 func compressData(data []byte) ([]byte, error) {

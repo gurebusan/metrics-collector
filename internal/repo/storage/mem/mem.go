@@ -1,13 +1,13 @@
 package mem
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
 
 	"github.com/zetcan333/metrics-collector/internal/models"
+	"github.com/zetcan333/metrics-collector/pkg/myerrors"
 )
 
 type MemStorage struct {
@@ -24,7 +24,7 @@ func (s *MemStorage) UpdateMetric(metric models.Metrics) {
 	s.Lock()
 	defer s.Unlock()
 
-	existing, exists := s.Metrics[metric.ID]
+	currentMetric, exists := s.Metrics[metric.ID]
 
 	switch metric.MType {
 	case models.Gauge:
@@ -35,8 +35,8 @@ func (s *MemStorage) UpdateMetric(metric models.Metrics) {
 		}
 	case models.Counter:
 		var newDelta int64
-		if exists && existing.Delta != nil {
-			newDelta = *existing.Delta
+		if exists && currentMetric.Delta != nil {
+			newDelta = *currentMetric.Delta
 		}
 		if metric.Delta != nil {
 			newDelta += *metric.Delta
@@ -49,11 +49,14 @@ func (s *MemStorage) UpdateMetric(metric models.Metrics) {
 	}
 }
 
-func (s *MemStorage) GetMetric(id string) (models.Metrics, bool) {
+func (s *MemStorage) GetMetric(id string) (models.Metrics, error) {
 	s.RLock()
 	defer s.RUnlock()
 	metric, exists := s.Metrics[id]
-	return metric, exists
+	if !exists {
+		return models.Metrics{}, myerrors.ErrMetricNotFound
+	}
+	return metric, nil
 }
 
 func (s *MemStorage) GetAllGauges() map[string]float64 {
@@ -84,20 +87,21 @@ func (s *MemStorage) SaveToFile(path string) error {
 	s.RLock()
 	defer s.RUnlock()
 
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
+	// Сериализуем всю мапу одним JSON-объектом
 	encoder := json.NewEncoder(file)
-	for _, metric := range s.Metrics {
-		if err := encoder.Encode(metric); err != nil {
-			return err
-		}
-	}
-	return nil
+	encoder.SetIndent("", "  ")
 
+	if err := encoder.Encode(s.Metrics); err != nil {
+		return fmt.Errorf("ошибка при сериализации данных: %v", err)
+	}
+
+	return nil
 }
 
 func (s *MemStorage) LoadFromFile(path string) error {
@@ -105,7 +109,6 @@ func (s *MemStorage) LoadFromFile(path string) error {
 	defer s.Unlock()
 
 	file, err := os.Open(path)
-
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -114,21 +117,12 @@ func (s *MemStorage) LoadFromFile(path string) error {
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	s.Metrics = make(map[string]models.Metrics)
-
-	for scanner.Scan() {
-		var metric models.Metrics
-		err := json.Unmarshal(scanner.Bytes(), &metric)
-		if err != nil {
-			return fmt.Errorf("ошибка декодирования JSON: %v", err)
-		}
-		s.Metrics[metric.ID] = metric
+	// Декодируем весь JSON-файл в мапу
+	var metrics map[string]models.Metrics
+	if err := json.NewDecoder(file).Decode(&metrics); err != nil {
+		return fmt.Errorf("ошибка при десериализации данных: %v", err)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("ошибка чтения файла: %v", err)
-	}
-
+	s.Metrics = metrics
 	return nil
 }

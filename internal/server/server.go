@@ -34,14 +34,14 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, flags *flags.S
 	router.Use(gziprespose.GzipResponseMiddleware)
 
 	router.Route("/", func(r chi.Router) {
-		r.Get("/", handlers.GetAllMetricsHandler)
+		r.Get("/", handlers.GetAllMetrics)
 		r.Route("/update", func(r chi.Router) {
-			r.Post("/{type}/{name}/{value}", handlers.UpdateHandler)
-			r.Post("/", handlers.UpdateJSONHandler)
+			r.Post("/{type}/{name}/{value}", handlers.UpdateMetric)
+			r.Post("/", handlers.UpdateMetric2)
 		})
 		r.Route("/value", func(r chi.Router) {
-			r.Get("/{type}/{name}", handlers.GetValueHandler)
-			r.Post("/", handlers.GetJSONHandler)
+			r.Get("/{type}/{name}", handlers.GetMetric)
+			r.Post("/", handlers.GetMetric2)
 		})
 	})
 
@@ -51,8 +51,9 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, flags *flags.S
 func (s *Server) Start(ctx context.Context) {
 	if s.flags.Restore {
 		if err := s.backup.LoadBackup(s.flags.FileStoragePath); err != nil {
-			s.log.Sugar().Errorln("falied to load backup", zap.Error(err))
+			s.log.Sugar().Errorln("failed to load backup", zap.Error(err))
 		}
+		s.log.Sugar().Infoln("backup loaded")
 	}
 	server := &http.Server{
 		Addr:    s.flags.Address,
@@ -79,6 +80,7 @@ func (s *Server) Start(ctx context.Context) {
 				if err := s.backup.SaveBackup(s.flags.FileStoragePath); err != nil {
 					s.log.Sugar().Errorln("Failed to save backup", zap.Error(err))
 				}
+				s.log.Sugar().Infoln("Backup saved")
 			case <-ctx.Done():
 				return
 			}
@@ -95,6 +97,7 @@ func (s *Server) Start(ctx context.Context) {
 	if err := s.backup.SaveBackup(s.flags.FileStoragePath); err != nil {
 		s.log.Sugar().Errorln("Failed to save final backup", zap.Error(err))
 	}
+	s.log.Sugar().Infoln("Backup saved")
 
 	if err := server.Shutdown(context.Background()); err != nil {
 		s.log.Sugar().Errorln("Failed to shutdown server", zap.Error(err))

@@ -21,42 +21,24 @@ type ServerFlags struct {
 	Restore         bool
 }
 
+const (
+	defaultAddress         = "localhost:8080"
+	defaultPollSec         = 2
+	defaultReportSec       = 10
+	defaultStoreSec        = 300
+	defaultFileStoragePath = "/backup/metrcs_db"
+	defaultRestore         = false
+)
+
 func NewAgentFlags() *AgentFlags {
-	// Значения по умолчанию
-	var (
-		pollSec, reportSec int
-		addr               string
-	)
 
-	// Читаем значения из переменных окружения, если они заданы
-	if envAddr := os.Getenv("ADDRESS"); envAddr != "" {
-		addr = envAddr
-	} else {
-		addr = "localhost:8080"
-	}
+	addr := getEnvOrDefaultString("ADDRESS", defaultAddress)
+	pollSec := getEnvOrDefaultInt("POLL_INTERVAL", defaultPollSec)
+	reportSec := getEnvOrDefaultInt("REPORT_INTERVAL", defaultReportSec)
 
-	if envPoll := os.Getenv("POLL_INTERVAL"); envPoll != "" {
-		if val, err := strconv.Atoi(envPoll); err == nil {
-			pollSec = val
-		}
-	} else {
-		pollSec = 2
-	}
-
-	if envReport := os.Getenv("REPORT_INTERVAL"); envReport != "" {
-		if val, err := strconv.Atoi(envReport); err == nil {
-			reportSec = val
-		}
-	} else {
-		reportSec = 10
-	}
-
-	// Регистрируем флаги (они могут переопределить env)
 	pflag.StringVarP(&addr, "a", "a", addr, "Address and port for connection")
 	pflag.IntVarP(&pollSec, "p", "p", pollSec, "Set poll interval")
 	pflag.IntVarP(&reportSec, "r", "r", reportSec, "Set report interval")
-
-	// Парсим флаги
 	pflag.Parse()
 
 	// Преобразуем флаги в финальные значения
@@ -73,27 +55,10 @@ func NewAgentFlags() *AgentFlags {
 
 func NewServerFlags() *ServerFlags {
 	// Значение по умолчанию
-	addr := "localhost:8080"
-	if envAddr := os.Getenv("ADDRESS"); envAddr != "" {
-		addr = envAddr
-	}
-
-	storeSec := 300
-	if envStore := os.Getenv("STORE_INTERVAL"); envStore != "" {
-		if val, err := strconv.Atoi(envStore); err == nil {
-			storeSec = val
-		}
-	}
-
-	fileStoragePath := "/backup/metrcs_db"
-	if envPath := os.Getenv("FILE_STORAGE_PATH"); envPath != "" {
-		fileStoragePath = envPath
-	}
-
-	restore := false
-	if envRestore := os.Getenv("RESTORE"); envRestore == "true" {
-		restore = true
-	}
+	addr := getEnvOrDefaultString("ADDRESS", defaultAddress)
+	storeSec := getEnvOrDefaultInt("STORE_INTERVAL", defaultStoreSec)
+	fileStoragePath := getEnvOrDefaultString("FILE_STORAGE_PATH", defaultFileStoragePath)
+	restore := getEnvOrDefaultBool("RESTORE", defaultRestore)
 
 	pflag.StringVarP(&addr, "a", "a", addr, "Address and port for the server")
 	pflag.IntVarP(&storeSec, "i", "i", storeSec, "Store interval for backup")
@@ -109,4 +74,29 @@ func NewServerFlags() *ServerFlags {
 		FileStoragePath: fileStoragePath,
 		Restore:         restore,
 	}
+}
+
+func getEnvOrDefaultString(envVar string, defaultValue string) string {
+	if value, ok := os.LookupEnv(envVar); ok {
+		return value
+	}
+	return defaultValue
+}
+
+func getEnvOrDefaultBool(envVar string, defaultValue bool) bool {
+	if value, ok := os.LookupEnv(envVar); ok {
+		if parsedValue, err := strconv.ParseBool(value); err == nil {
+			return parsedValue
+		}
+	}
+	return defaultValue
+}
+
+func getEnvOrDefaultInt(envVar string, defaultValue int) int {
+	if value, ok := os.LookupEnv(envVar); ok {
+		if parsedValue, err := strconv.Atoi(value); err == nil {
+			return parsedValue
+		}
+	}
+	return defaultValue
 }
