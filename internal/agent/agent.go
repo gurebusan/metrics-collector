@@ -127,11 +127,11 @@ func (a *Agent) SendMetrics() error {
 	a.RLock()
 	defer a.RUnlock()
 
-	baseUrl, err := url.Parse(a.ServerURL)
+	baseURL, err := url.Parse(a.ServerURL)
 	if err != nil {
 		return fmt.Errorf("invalid server URL: %w", err)
 	}
-	baseUrl.Path = path.Join(baseUrl.Path, "update")
+	baseURL.Path = path.Join(baseURL.Path, "update")
 
 	for name, value := range a.Metrics {
 		body, err := json.Marshal(value)
@@ -144,7 +144,7 @@ func (a *Agent) SendMetrics() error {
 			return fmt.Errorf("failed to compress data: %v", err)
 		}
 
-		req, err := http.NewRequest("POST", baseUrl.String(), bytes.NewBuffer(compressedBody))
+		req, err := http.NewRequest("POST", baseURL.String(), bytes.NewBuffer(compressedBody))
 		if err != nil {
 			return fmt.Errorf("failed to create request: %v", err)
 		}
