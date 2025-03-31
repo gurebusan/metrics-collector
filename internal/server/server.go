@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -63,7 +62,7 @@ func (s *Server) Start(ctx context.Context) {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		fmt.Println("Starting server...")
+		s.log.Sugar().Infoln("Starting server...")
 		err := server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			s.log.Sugar().Fatalln("failed to start server", zap.Error(err))

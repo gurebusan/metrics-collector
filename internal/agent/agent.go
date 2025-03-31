@@ -9,10 +9,13 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
 	"path"
 	"reflect"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/zetcan333/metrics-collector/internal/models"
@@ -24,7 +27,6 @@ type Agent struct {
 	PollInterval   time.Duration
 	ReportInterval time.Duration
 	Metrics        map[string]models.Metrics
-	PollCount      int64
 	client         http.Client
 	sync.RWMutex
 }
@@ -57,9 +59,8 @@ type MetricsSnapshot struct {
 	StackSys      float64
 	Sys           float64
 	TotalAlloc    float64
-
-	RandomValue float64
-	PollCount   int64
+	RandomValue   float64
+	PollCount     int64
 }
 
 // Конструктор агента
@@ -75,13 +76,14 @@ func NewAgent(serverURL string, pollInterval, reportInterval time.Duration) *Age
 	}
 }
 
-func (a *Agent) NextPollCount() int64 {
-	a.PollCount++
-	return a.PollCount
-}
-
-// Запуск агента
 func (a *Agent) Start(ctx context.Context) {
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
 	go func() {
 		ticker := time.NewTicker(a.PollInterval)
 		defer ticker.Stop()
@@ -95,16 +97,14 @@ func (a *Agent) Start(ctx context.Context) {
 			}
 		}
 	}()
-
 	go func() {
 		ticker := time.NewTicker(a.ReportInterval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				err := a.SendMetrics()
-				if err != nil {
-					fmt.Println(err)
+				if err := a.SendMetrics(); err != nil {
+					fmt.Printf("Error sending metrics: %v\n", err)
 				}
 			case <-ctx.Done():
 				fmt.Println("Metrics reporting stopped")
@@ -112,6 +112,14 @@ func (a *Agent) Start(ctx context.Context) {
 			}
 		}
 	}()
+	select {
+	case <-stop:
+		fmt.Println("Received termination signal, shutting down...")
+		cancel()
+	case <-ctx.Done():
+	}
+	time.Sleep(1 * time.Second)
+
 }
 
 // Отправляем метрики на сервер
@@ -123,7 +131,7 @@ func (a *Agent) SendMetrics() error {
 	if err != nil {
 		return fmt.Errorf("invalid server URL: %w", err)
 	}
-	baseUrl.Path = path.Join(baseUrl.Path, "update/")
+	baseUrl.Path = path.Join(baseUrl.Path, "update")
 
 	for name, value := range a.Metrics {
 		body, err := json.Marshal(value)
@@ -136,7 +144,7 @@ func (a *Agent) SendMetrics() error {
 			return fmt.Errorf("failed to compress data: %v", err)
 		}
 
-		req, err := http.NewRequest("POST", baseUrl.Path, bytes.NewBuffer(compressedBody))
+		req, err := http.NewRequest("POST", baseUrl.String(), bytes.NewBuffer(compressedBody))
 		if err != nil {
 			return fmt.Errorf("failed to create request: %v", err)
 		}
@@ -161,7 +169,8 @@ func (a *Agent) SendMetrics() error {
 // Сбор метрик из runtime
 func (a *Agent) CollectMetrics() {
 
-	snapshot := a.CollectFlat()
+	snapshot := MetricsSnapshot{}
+	snapshot.collectFlat()
 
 	a.Lock()
 	defer a.Unlock()
@@ -186,44 +195,39 @@ func (a *Agent) CollectMetrics() {
 	}
 }
 
-func (a *Agent) CollectFlat() MetricsSnapshot {
+func (m *MetricsSnapshot) collectFlat() {
 	var rtm runtime.MemStats
 	runtime.ReadMemStats(&rtm)
-	a.Lock()
-	defer a.Unlock()
 
-	return MetricsSnapshot{
-		Alloc:         float64(rtm.Alloc),
-		BuckHashSys:   float64(rtm.BuckHashSys),
-		Frees:         float64(rtm.Frees),
-		GCCPUFraction: float64(rtm.GCCPUFraction),
-		GCSys:         float64(rtm.GCSys),
-		HeapAlloc:     float64(rtm.HeapAlloc),
-		HeapIdle:      float64(rtm.HeapIdle),
-		HeapInuse:     float64(rtm.HeapInuse),
-		HeapObjects:   float64(rtm.HeapObjects),
-		HeapReleased:  float64(rtm.HeapReleased),
-		HeapSys:       float64(rtm.HeapSys),
-		LastGC:        float64(rtm.LastGC),
-		Lookups:       float64(rtm.Lookups),
-		MCacheInuse:   float64(rtm.MCacheInuse),
-		MCacheSys:     float64(rtm.MCacheSys),
-		MSpanInuse:    float64(rtm.MSpanInuse),
-		MSpanSys:      float64(rtm.MSpanSys),
-		Mallocs:       float64(rtm.Mallocs),
-		NextGC:        float64(rtm.NextGC),
-		NumForcedGC:   float64(rtm.NumForcedGC),
-		NumGC:         float64(rtm.NumGC),
-		OtherSys:      float64(rtm.OtherSys),
-		PauseTotalNs:  float64(rtm.PauseTotalNs),
-		StackInuse:    float64(rtm.StackInuse),
-		StackSys:      float64(rtm.StackSys),
-		Sys:           float64(rtm.Sys),
-		TotalAlloc:    float64(rtm.TotalAlloc),
+	m.Alloc = float64(rtm.Alloc)
+	m.BuckHashSys = float64(rtm.BuckHashSys)
+	m.Frees = float64(rtm.Frees)
+	m.GCCPUFraction = float64(rtm.GCCPUFraction)
+	m.GCSys = float64(rtm.GCSys)
+	m.HeapAlloc = float64(rtm.HeapAlloc)
+	m.HeapIdle = float64(rtm.HeapIdle)
+	m.HeapInuse = float64(rtm.HeapInuse)
+	m.HeapObjects = float64(rtm.HeapObjects)
+	m.HeapReleased = float64(rtm.HeapReleased)
+	m.HeapSys = float64(rtm.HeapSys)
+	m.LastGC = float64(rtm.LastGC)
+	m.Lookups = float64(rtm.Lookups)
+	m.MCacheInuse = float64(rtm.MCacheInuse)
+	m.MCacheSys = float64(rtm.MCacheSys)
+	m.MSpanInuse = float64(rtm.MSpanInuse)
+	m.MSpanSys = float64(rtm.MSpanSys)
+	m.Mallocs = float64(rtm.Mallocs)
+	m.NextGC = float64(rtm.NextGC)
+	m.NumForcedGC = float64(rtm.NumForcedGC)
+	m.NumGC = float64(rtm.NumGC)
+	m.OtherSys = float64(rtm.OtherSys)
+	m.PauseTotalNs = float64(rtm.PauseTotalNs)
+	m.StackInuse = float64(rtm.StackInuse)
+	m.StackSys = float64(rtm.StackSys)
+	m.Sys = float64(rtm.Sys)
 
-		RandomValue: rand.Float64(),
-		PollCount:   a.NextPollCount(),
-	}
+	m.RandomValue = rand.Float64()
+	m.PollCount++
 }
 
 func compressData(data []byte) ([]byte, error) {
