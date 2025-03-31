@@ -225,6 +225,7 @@ func (m *MetricsSnapshot) collectFlat(pollCount int64) {
 	m.StackInuse = float64(rtm.StackInuse)
 	m.StackSys = float64(rtm.StackSys)
 	m.Sys = float64(rtm.Sys)
+	m.TotalAlloc = float64(rtm.TotalAlloc)
 
 	m.RandomValue = rand.Float64()
 	m.PollCount = pollCount
