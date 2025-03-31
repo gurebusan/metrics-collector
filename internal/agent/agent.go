@@ -27,6 +27,7 @@ type Agent struct {
 	PollInterval   time.Duration
 	ReportInterval time.Duration
 	Metrics        map[string]models.Metrics
+	PollCount      int64
 	client         http.Client
 	sync.RWMutex
 }
@@ -168,12 +169,11 @@ func (a *Agent) SendMetrics() error {
 
 // Сбор метрик из runtime
 func (a *Agent) CollectMetrics() {
-
-	snapshot := MetricsSnapshot{}
-	snapshot.collectFlat()
-
 	a.Lock()
 	defer a.Unlock()
+	a.PollCount++
+	snapshot := MetricsSnapshot{}
+	snapshot.collectFlat(a.PollCount)
 
 	v := reflect.ValueOf(snapshot)
 	t := v.Type()
@@ -195,7 +195,7 @@ func (a *Agent) CollectMetrics() {
 	}
 }
 
-func (m *MetricsSnapshot) collectFlat() {
+func (m *MetricsSnapshot) collectFlat(pollCount int64) {
 	var rtm runtime.MemStats
 	runtime.ReadMemStats(&rtm)
 
@@ -227,7 +227,7 @@ func (m *MetricsSnapshot) collectFlat() {
 	m.Sys = float64(rtm.Sys)
 
 	m.RandomValue = rand.Float64()
-	m.PollCount++
+	m.PollCount = pollCount
 }
 
 func compressData(data []byte) ([]byte, error) {

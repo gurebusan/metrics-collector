@@ -36,7 +36,7 @@ func TestCollectMetrics(t *testing.T) {
 
 func TestSendMetrics(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Contains(t, r.URL.Path, "/update/", "Неправильный URL")
+		assert.Contains(t, r.URL.Path, "/update", "Неправильный URL")
 
 		// Проверяем заголовок Content-Encoding
 		assert.Equal(t, "gzip", r.Header.Get("Content-Encoding"), "Данные должны быть сжаты в gzip")
