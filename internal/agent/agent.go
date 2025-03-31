@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
+	"path"
 	"reflect"
 	"runtime"
 	"sync"
@@ -67,6 +69,9 @@ func NewAgent(serverURL string, pollInterval, reportInterval time.Duration) *Age
 		PollInterval:   pollInterval,
 		ReportInterval: reportInterval,
 		Metrics:        make(map[string]models.Metrics),
+		client: http.Client{
+			Timeout: 15 * time.Second,
+		},
 	}
 }
 
@@ -114,6 +119,12 @@ func (a *Agent) SendMetrics() error {
 	a.RLock()
 	defer a.RUnlock()
 
+	baseUrl, err := url.Parse(a.ServerURL)
+	if err != nil {
+		return fmt.Errorf("invalid server URL: %w", err)
+	}
+	baseUrl.Path = path.Join(baseUrl.Path, "update/")
+
 	for name, value := range a.Metrics {
 		body, err := json.Marshal(value)
 		if err != nil {
@@ -125,9 +136,7 @@ func (a *Agent) SendMetrics() error {
 			return fmt.Errorf("failed to compress data: %v", err)
 		}
 
-		destination := fmt.Sprintf("%s/update/", a.ServerURL)
-
-		req, err := http.NewRequest("POST", destination, bytes.NewBuffer(compressedBody))
+		req, err := http.NewRequest("POST", baseUrl.Path, bytes.NewBuffer(compressedBody))
 		if err != nil {
 			return fmt.Errorf("failed to create request: %v", err)
 		}
@@ -164,14 +173,12 @@ func (a *Agent) CollectMetrics() {
 		field := v.Field(i)
 		name := t.Field(i).Name
 
-		// Пропускаем PollCount - это counter
 		if name == "PollCount" {
 			delta := field.Int()
 			a.Metrics[name] = models.Metrics{ID: name, MType: models.Counter, Delta: &delta}
 			continue
 		}
 
-		// Все остальные поля считаем gauge
 		if field.Kind() == reflect.Float64 {
 			value := field.Float()
 			a.Metrics[name] = models.Metrics{ID: name, MType: models.Gauge, Value: &value}
