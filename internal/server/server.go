@@ -14,6 +14,7 @@ import (
 	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/compressor/gziprespose"
 	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/compressor/mygzip"
 	mwLogger "github.com/zetcan333/metrics-collector/internal/handlers/middleware/logger"
+	"github.com/zetcan333/metrics-collector/internal/handlers/ping"
 	"github.com/zetcan333/metrics-collector/internal/usecase/backup"
 	"go.uber.org/zap"
 )
@@ -25,7 +26,7 @@ type Server struct {
 	backup *backup.BackupUsecase
 }
 
-func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, flags *flags.ServerFlags, backup *backup.BackupUsecase) *Server {
+func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.PingHandler, flags *flags.ServerFlags, backup *backup.BackupUsecase) *Server {
 	router := chi.NewRouter()
 
 	router.Use(mwLogger.New(log))
@@ -34,6 +35,7 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, flags *flags.S
 
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", handlers.GetAllMetrics)
+		r.Get("/ping", ping.Ping)
 		r.Route("/update", func(r chi.Router) {
 			r.Post("/{type}/{name}/{value}", handlers.UpdateMetric)
 			r.Post("/", handlers.UpdateViaModel)
