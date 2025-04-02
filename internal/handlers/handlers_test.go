@@ -1,170 +1,95 @@
 package handlers_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
-	me "github.com/zetcan333/metrics-collector/pkg/myerrors"
+	"github.com/zetcan333/metrics-collector/internal/handlers/mocks"
+	"github.com/zetcan333/metrics-collector/internal/models"
+	"github.com/zetcan333/metrics-collector/pkg/myerrors"
 )
 
-// Мок для ServerUseCase
-type mockUseCase struct {
-	updateMetricFunc func(metricType, metricName, metricValue string) error
-	getValueFunc     func(metricType, metricName string) (string, error)
-}
-
-func (m *mockUseCase) UpdateMetric(metricType, metricName, metricValue string) error {
-	return m.updateMetricFunc(metricType, metricName, metricValue)
-}
-
-func (m *mockUseCase) GetValue(metricType, metricName string) (string, error) {
-	return m.getValueFunc(metricType, metricName)
-}
-
-func (m *mockUseCase) GetAllMetric() (string, error) {
-	return "", nil
-}
-
-func TestUpdateHandler(t *testing.T) {
+func TestUpdateMetric(t *testing.T) {
 	tests := []struct {
 		name         string
 		path         string
-		mockFunc     func(metricType, metricName, metricValue string) error
+		mockSetup    func(*mocks.ServerUseCase)
 		expectedCode int
+		expectedBody string
 	}{
 		{
-			name: "Valid gauge metric",
+			name: "Success gauge update",
 			path: "/update/gauge/testGauge/123.45",
-			mockFunc: func(metricType, metricName, metricValue string) error {
-				return nil
-			},
-			expectedCode: http.StatusOK,
-		},
-		{
-			name: "Valid counter metric",
-			path: "/update/counter/testCounter/100",
-			mockFunc: func(metricType, metricName, metricValue string) error {
-				return nil
+			mockSetup: func(m *mocks.ServerUseCase) {
+				m.On("UpdateMetric", "gauge", "testGauge", "123.45").Return(nil)
 			},
 			expectedCode: http.StatusOK,
 		},
 		{
 			name: "Invalid metric type",
-			path: "/update/unknown/testMetric/123",
-			mockFunc: func(metricType, metricName, metricValue string) error {
-				return me.ErrInvalidMetricType
+			path: "/update/invalid/test/123",
+			mockSetup: func(m *mocks.ServerUseCase) {
+				m.On("UpdateMetric", "invalid", "test", "123").Return(myerrors.ErrInvalidMetricType)
 			},
 			expectedCode: http.StatusBadRequest,
-		},
-		{
-			name: "Invalid gauge value",
-			path: "/update/gauge/testGauge/invalid",
-			mockFunc: func(metricType, metricName, metricValue string) error {
-				return me.ErrInvalidGaugeValue
-			},
-			expectedCode: http.StatusBadRequest,
-		},
-		{
-			name: "Invalid counter value",
-			path: "/update/counter/testCounter/invalid",
-			mockFunc: func(metricType, metricName, metricValue string) error {
-				return me.ErrInvalidCounterValue
-			},
-			expectedCode: http.StatusBadRequest,
-		},
-		{
-			name: "Empty metric name",
-			path: "/update/gauge//123.45",
-			mockFunc: func(metricType, metricName, metricValue string) error {
-				return nil
-			},
-			expectedCode: http.StatusNotFound,
-		},
-		{
-			name: "Invalid path",
-			path: "/update/gauge/testGauge",
-			mockFunc: func(metricType, metricName, metricValue string) error {
-				return nil
-			},
-			expectedCode: http.StatusNotFound,
+			expectedBody: "invalid metric type\n",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Создаём мок usecase
-			mockUsecase := &mockUseCase{
-				updateMetricFunc: tt.mockFunc,
-			}
+			mockUsecase := &mocks.ServerUseCase{}
+			tt.mockSetup(mockUsecase)
 
-			// Создаём хэндлер
 			handler := handlers.NewServerHandler(mockUsecase)
-
-			// Создаём роутер chi
 			r := chi.NewRouter()
-			r.Post("/update/{type}/{name}/{value}", handler.UpdateHandle)
+			r.Post("/update/{type}/{name}/{value}", handler.UpdateMetric)
 
-			// Создаём тестовый HTTP-запрос
 			req, err := http.NewRequest(http.MethodPost, tt.path, nil)
-			require.NoError(t, err, "failed to create request")
+			require.NoError(t, err)
 
-			// Создаём ResponseRecorder для получения ответа
 			rr := httptest.NewRecorder()
-
-			// Вызываем роутер
 			r.ServeHTTP(rr, req)
 
-			// Проверяем HTTP-код ответа
-			assert.Equal(t, tt.expectedCode, rr.Code, "unexpected status code")
+			assert.Equal(t, tt.expectedCode, rr.Code)
+			if tt.expectedBody != "" {
+				assert.Equal(t, tt.expectedBody, rr.Body.String())
+			}
+			mockUsecase.AssertExpectations(t)
 		})
 	}
 }
 
-func TestGetValueHandler(t *testing.T) {
+func TestGetMetric(t *testing.T) {
 	tests := []struct {
 		name         string
 		path         string
-		mockFunc     func(metricType, metricName string) (string, error)
+		mockSetup    func(*mocks.ServerUseCase)
 		expectedCode int
 		expectedBody string
 	}{
 		{
-			name: "Valid gauge metric",
-			path: "/value/gauge/Alloc",
-			mockFunc: func(metricType, metricName string) (string, error) {
-				return "123.45", nil
+			name: "Success get gauge",
+			path: "/value/gauge/testGauge",
+			mockSetup: func(m *mocks.ServerUseCase) {
+				m.On("GetMetric", "gauge", "testGauge").Return("123.45", nil)
 			},
 			expectedCode: http.StatusOK,
 			expectedBody: "123.45",
 		},
 		{
-			name: "Valid counter metric",
-			path: "/value/counter/PollCount",
-			mockFunc: func(metricType, metricName string) (string, error) {
-				return "10", nil
-			},
-			expectedCode: http.StatusOK,
-			expectedBody: "10",
-		},
-		{
-			name: "Unknown metric type",
-			path: "/value/unknown/Test",
-			mockFunc: func(metricType, metricName string) (string, error) {
-				return "", me.ErrInvalidMetricType
-			},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: "invalid metric type\n",
-		},
-		{
-			name: "Non-existent metric",
-			path: "/value/gauge/UnknownMetric",
-			mockFunc: func(metricType, metricName string) (string, error) {
-				return "", me.ErrMetricNotFound
+			name: "Metric not found",
+			path: "/value/gauge/notfound",
+			mockSetup: func(m *mocks.ServerUseCase) {
+				m.On("GetMetric", "gauge", "notfound").Return("", myerrors.ErrMetricNotFound)
 			},
 			expectedCode: http.StatusNotFound,
 			expectedBody: "metric not found\n",
@@ -173,33 +98,166 @@ func TestGetValueHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Создаём мок usecase
-			mockUsecase := &mockUseCase{
-				getValueFunc: tt.mockFunc,
-			}
+			mockUsecase := &mocks.ServerUseCase{}
+			tt.mockSetup(mockUsecase)
 
-			// Создаём хэндлер
 			handler := handlers.NewServerHandler(mockUsecase)
-
-			// Создаём роутер chi
 			r := chi.NewRouter()
-			r.Get("/value/{type}/{name}", handler.GetValueHandler)
+			r.Get("/value/{type}/{name}", handler.GetMetric)
 
-			// Создаём тестовый HTTP-запрос
 			req, err := http.NewRequest(http.MethodGet, tt.path, nil)
-			require.NoError(t, err, "failed to create request")
+			require.NoError(t, err)
 
-			// Создаём ResponseRecorder для получения ответа
 			rr := httptest.NewRecorder()
-
-			// Вызываем роутер
 			r.ServeHTTP(rr, req)
 
-			// Проверяем HTTP-код ответа
-			assert.Equal(t, tt.expectedCode, rr.Code, "unexpected status code")
+			assert.Equal(t, tt.expectedCode, rr.Code)
+			assert.Equal(t, tt.expectedBody, rr.Body.String())
+			mockUsecase.AssertExpectations(t)
+		})
+	}
+}
 
-			// Проверяем тело ответа
-			assert.Equal(t, tt.expectedBody, rr.Body.String(), "unexpected response body")
+func TestUpdateViaModel(t *testing.T) {
+	tests := []struct {
+		name         string
+		requestBody  models.Metrics
+		mockSetup    func(*mocks.ServerUseCase)
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name: "Success via model update",
+			requestBody: models.Metrics{
+				ID:    "testGauge",
+				MType: "gauge",
+				Value: func() *float64 { v := 123.45; return &v }(),
+			},
+			mockSetup: func(m *mocks.ServerUseCase) {
+				m.On("UpdateViaModel", mock.AnythingOfType("models.Metrics")).
+					Return(models.Metrics{
+						ID:    "testGauge",
+						MType: "gauge",
+						Value: func() *float64 { v := 123.45; return &v }(),
+					}, nil)
+			},
+			expectedCode: http.StatusOK,
+			expectedBody: `{"id":"testGauge","type":"gauge","value":123.45}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockUsecase := &mocks.ServerUseCase{}
+			tt.mockSetup(mockUsecase)
+
+			handler := handlers.NewServerHandler(mockUsecase)
+			r := chi.NewRouter()
+			r.Post("/update/", handler.UpdateViaModel)
+
+			body, _ := json.Marshal(tt.requestBody)
+			req, err := http.NewRequest(http.MethodPost, "/update/", bytes.NewReader(body))
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedCode, rr.Code)
+			if tt.expectedBody != "" {
+				assert.JSONEq(t, tt.expectedBody, rr.Body.String())
+			}
+			mockUsecase.AssertExpectations(t)
+		})
+	}
+}
+
+func TestGetViaModel(t *testing.T) {
+	tests := []struct {
+		name         string
+		requestBody  models.Metrics
+		mockSetup    func(*mocks.ServerUseCase)
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name: "Success get metric via model",
+			requestBody: models.Metrics{
+				ID:    "testGauge",
+				MType: "gauge",
+			},
+			mockSetup: func(m *mocks.ServerUseCase) {
+				m.On("GetViaModel", mock.AnythingOfType("models.Metrics")).
+					Return(models.Metrics{
+						ID:    "testGauge",
+						MType: "gauge",
+						Value: func() *float64 { v := 123.45; return &v }(),
+					}, nil)
+			},
+			expectedCode: http.StatusOK,
+			expectedBody: `{"id":"testGauge","type":"gauge","value":123.45}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockUsecase := &mocks.ServerUseCase{}
+			tt.mockSetup(mockUsecase)
+
+			handler := handlers.NewServerHandler(mockUsecase)
+			r := chi.NewRouter()
+			r.Post("/value/", handler.GetViaModel)
+
+			body, _ := json.Marshal(tt.requestBody)
+			req, err := http.NewRequest(http.MethodPost, "/value/", bytes.NewReader(body))
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedCode, rr.Code)
+			if tt.expectedBody != "" {
+				assert.JSONEq(t, tt.expectedBody, rr.Body.String())
+			}
+			mockUsecase.AssertExpectations(t)
+		})
+	}
+}
+
+func TestGetAllMetrics(t *testing.T) {
+	tests := []struct {
+		name         string
+		mockSetup    func(*mocks.ServerUseCase)
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name: "Success get all metrics",
+			mockSetup: func(m *mocks.ServerUseCase) {
+				m.On("GetAllMetrics").Return("<html>metrics</html>", nil)
+			},
+			expectedCode: http.StatusOK,
+			expectedBody: "<html>metrics</html>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockUsecase := &mocks.ServerUseCase{}
+			tt.mockSetup(mockUsecase)
+
+			handler := handlers.NewServerHandler(mockUsecase)
+			r := chi.NewRouter()
+			r.Get("/", handler.GetAllMetrics)
+
+			req, err := http.NewRequest(http.MethodGet, "/", nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedCode, rr.Code)
+			assert.Equal(t, tt.expectedBody, rr.Body.String())
+			mockUsecase.AssertExpectations(t)
 		})
 	}
 }

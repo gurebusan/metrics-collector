@@ -1,25 +1,40 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"net/http"
+	"context"
 
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
+	"github.com/zetcan333/metrics-collector/internal/handlers/ping"
 	"github.com/zetcan333/metrics-collector/internal/repo/storage/mem"
-	"github.com/zetcan333/metrics-collector/internal/usercase"
+	"github.com/zetcan333/metrics-collector/internal/repo/storage/postgres"
+	"github.com/zetcan333/metrics-collector/internal/server"
+	"github.com/zetcan333/metrics-collector/internal/usecase"
+	"github.com/zetcan333/metrics-collector/internal/usecase/backup"
+	"go.uber.org/zap"
 )
 
 func main() {
+	log, err := zap.NewProduction()
+	if err != nil {
+		panic("cannot initialize zap")
+	}
+	defer log.Sync()
+	serverFlags := flags.NewServerFlags()
+	ctx := context.WithoutCancel(context.Background())
+
+	pgstorage, err := postgres.New(ctx, serverFlags.DataBaseDSN)
+	if err != nil {
+		log.Sugar().Errorln(err)
+	}
+	ping := ping.New(pgstorage)
 
 	storage := mem.NewStorage()
-	serverUsecase := usercase.NewSeverUsecase(storage)
-	h := handlers.NewServerHandler(serverUsecase)
+	serverUsecase := usecase.NewSeverUsecase(storage)
+	backup := backup.NewBackupUsecase(storage)
+	handlers := handlers.NewServerHandler(serverUsecase)
 
-	s := flags.NewServerFlags()
+	server := server.NewServer(log, handlers, ping, serverFlags, backup)
 
-	r := h.NewRouter()
-	fmt.Println("Server running on:", s.Address)
-	log.Fatal(http.ListenAndServe(s.Address, r))
+	server.Start(ctx)
 }
