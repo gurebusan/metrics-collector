@@ -68,12 +68,12 @@ func (_m *ServerUseCase) GetMetric(metricType string, metricName string) (string
 	return r0, r1
 }
 
-// GetMetric2 provides a mock function with given fields: metric
-func (_m *ServerUseCase) GetMetric2(metric models.Metrics) (models.Metrics, error) {
+// GetViaModel provides a mock function with given fields: metric
+func (_m *ServerUseCase) GetViaModel(metric models.Metrics) (models.Metrics, error) {
 	ret := _m.Called(metric)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetMetric2")
+		panic("no return value specified for GetViaModel")
 	}
 
 	var r0 models.Metrics
@@ -114,12 +114,12 @@ func (_m *ServerUseCase) UpdateMetric(metricType string, metricName string, metr
 	return r0
 }
 
-// UpdateMetric2 provides a mock function with given fields: metric
-func (_m *ServerUseCase) UpdateMetric2(metric models.Metrics) (models.Metrics, error) {
+// UpdateViaModel provides a mock function with given fields: metric
+func (_m *ServerUseCase) UpdateViaModel(metric models.Metrics) (models.Metrics, error) {
 	ret := _m.Called(metric)
 
 	if len(ret) == 0 {
-		panic("no return value specified for UpdateMetric2")
+		panic("no return value specified for UpdateViaModel")
 	}
 
 	var r0 models.Metrics

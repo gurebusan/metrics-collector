@@ -74,7 +74,7 @@ func (s *SeverUsecase) GetMetric(metricType, metricName string) (string, error) 
 	}
 }
 
-func (s *SeverUsecase) UpdateMetric2(metric models.Metrics) (models.Metrics, error) {
+func (s *SeverUsecase) UpdateViaModel(metric models.Metrics) (models.Metrics, error) {
 	if metric.MType != "gauge" && metric.MType != "counter" {
 		return models.Metrics{}, myerrors.ErrInvalidMetricType
 	}
@@ -109,7 +109,7 @@ func (s *SeverUsecase) UpdateMetric2(metric models.Metrics) (models.Metrics, err
 	return models.Metrics{}, myerrors.ErrInvalidMetricType
 }
 
-func (s *SeverUsecase) GetMetric2(metric models.Metrics) (models.Metrics, error) {
+func (s *SeverUsecase) GetViaModel(metric models.Metrics) (models.Metrics, error) {
 
 	if metric.MType != "gauge" && metric.MType != "counter" {
 		return models.Metrics{}, myerrors.ErrInvalidMetricType

@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path"
 	"reflect"
 	"runtime"
 	"sync"
@@ -119,7 +118,6 @@ func (a *Agent) Start(ctx context.Context) {
 		cancel()
 	case <-ctx.Done():
 	}
-	time.Sleep(1 * time.Second)
 
 }
 
@@ -132,7 +130,8 @@ func (a *Agent) SendMetrics() error {
 	if err != nil {
 		return fmt.Errorf("invalid server URL: %w", err)
 	}
-	baseURL.Path = path.Join(baseURL.Path, "update")
+
+	updateURL := baseURL.JoinPath("update")
 
 	for name, value := range a.Metrics {
 		body, err := json.Marshal(value)
@@ -145,7 +144,7 @@ func (a *Agent) SendMetrics() error {
 			return fmt.Errorf("failed to compress data: %v", err)
 		}
 
-		req, err := http.NewRequest("POST", baseURL.String(), bytes.NewBuffer(compressedBody))
+		req, err := http.NewRequest("POST", updateURL.String(), bytes.NewBuffer(compressedBody))
 		if err != nil {
 			return fmt.Errorf("failed to create request: %v", err)
 		}

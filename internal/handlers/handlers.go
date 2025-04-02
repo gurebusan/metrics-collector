@@ -15,8 +15,8 @@ import (
 type ServerUseCase interface {
 	UpdateMetric(metricType, metricName, metricValue string) error
 	GetMetric(metricType, metricName string) (string, error)
-	UpdateMetric2(metric models.Metrics) (models.Metrics, error)
-	GetMetric2(metric models.Metrics) (models.Metrics, error)
+	UpdateViaModel(metric models.Metrics) (models.Metrics, error)
+	GetViaModel(metric models.Metrics) (models.Metrics, error)
 	GetAllMetrics() (string, error)
 }
 
@@ -72,14 +72,14 @@ func (h *ServerHandler) GetMetric(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%s", res)
 }
 
-func (h *ServerHandler) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
+func (h *ServerHandler) UpdateViaModel(w http.ResponseWriter, r *http.Request) {
 	var metric models.Metrics
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
 		http.Error(w, "invalid JSON format", http.StatusBadRequest)
 		return
 	}
 
-	updatedMetric, err := h.serverUseCase.UpdateMetric2(metric)
+	updatedMetric, err := h.serverUseCase.UpdateViaModel(metric)
 	if err != nil {
 		switch {
 		case isBadRequest(err):
@@ -96,14 +96,14 @@ func (h *ServerHandler) UpdateMetric2(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(updatedMetric)
 }
 
-func (h *ServerHandler) GetMetric2(w http.ResponseWriter, r *http.Request) {
+func (h *ServerHandler) GetViaModel(w http.ResponseWriter, r *http.Request) {
 	var metric models.Metrics
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
 		http.Error(w, "invalid JSON format", http.StatusBadRequest)
 		return
 	}
 
-	result, err := h.serverUseCase.GetMetric2(metric)
+	result, err := h.serverUseCase.GetViaModel(metric)
 	if err != nil {
 		switch {
 		case errors.Is(err, myerrors.ErrMetricNotFound):

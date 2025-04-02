@@ -7,8 +7,8 @@ import (
 )
 
 type ServerBackupMnger interface {
-	SaveToFile(path string) error
-	LoadFromFile(path string) error
+	SaveBkpToFile(path string) error
+	LoadBkpFromFile(path string) error
 }
 
 type BackupUsecase struct {
@@ -31,7 +31,7 @@ func (b *BackupUsecase) SaveBackup(relativePath string) error {
 		return fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
-	if err = b.mnger.SaveToFile(path); err != nil {
+	if err = b.mnger.SaveBkpToFile(path); err != nil {
 		return err
 	}
 	return nil
@@ -45,7 +45,7 @@ func (b *BackupUsecase) LoadBackup(relativePath string) error {
 	}
 	path := filepath.Join(wd, relativePath)
 
-	if err = b.mnger.LoadFromFile(path); err != nil {
+	if err = b.mnger.LoadBkpFromFile(path); err != nil {
 		return err
 	}
 	return nil

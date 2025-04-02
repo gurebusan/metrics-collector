@@ -36,11 +36,11 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, flags *flags.S
 		r.Get("/", handlers.GetAllMetrics)
 		r.Route("/update", func(r chi.Router) {
 			r.Post("/{type}/{name}/{value}", handlers.UpdateMetric)
-			r.Post("/", handlers.UpdateMetric2)
+			r.Post("/", handlers.UpdateViaModel)
 		})
 		r.Route("/value", func(r chi.Router) {
 			r.Get("/{type}/{name}", handlers.GetMetric)
-			r.Post("/", handlers.GetMetric2)
+			r.Post("/", handlers.GetViaModel)
 		})
 	})
 
@@ -51,8 +51,9 @@ func (s *Server) Start(ctx context.Context) {
 	if s.flags.Restore {
 		if err := s.backup.LoadBackup(s.flags.FileStoragePath); err != nil {
 			s.log.Sugar().Errorln("failed to load backup", zap.Error(err))
+		} else {
+			s.log.Sugar().Infoln("backup loaded")
 		}
-		s.log.Sugar().Infoln("backup loaded")
 	}
 	server := &http.Server{
 		Addr:    s.flags.Address,
@@ -78,6 +79,7 @@ func (s *Server) Start(ctx context.Context) {
 			case <-ticker.C:
 				if err := s.backup.SaveBackup(s.flags.FileStoragePath); err != nil {
 					s.log.Sugar().Errorln("Failed to save backup", zap.Error(err))
+					return
 				}
 				s.log.Sugar().Infoln("Backup saved")
 			case <-ctx.Done():

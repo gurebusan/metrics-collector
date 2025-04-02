@@ -118,7 +118,7 @@ func TestGetMetric(t *testing.T) {
 	}
 }
 
-func TestUpdateMetric2(t *testing.T) {
+func TestUpdateViaModel(t *testing.T) {
 	tests := []struct {
 		name         string
 		requestBody  models.Metrics
@@ -127,14 +127,14 @@ func TestUpdateMetric2(t *testing.T) {
 		expectedBody string
 	}{
 		{
-			name: "Success JSON update",
+			name: "Success via model update",
 			requestBody: models.Metrics{
 				ID:    "testGauge",
 				MType: "gauge",
 				Value: func() *float64 { v := 123.45; return &v }(),
 			},
 			mockSetup: func(m *mocks.ServerUseCase) {
-				m.On("UpdateMetric2", mock.AnythingOfType("models.Metrics")).
+				m.On("UpdateViaModel", mock.AnythingOfType("models.Metrics")).
 					Return(models.Metrics{
 						ID:    "testGauge",
 						MType: "gauge",
@@ -153,10 +153,62 @@ func TestUpdateMetric2(t *testing.T) {
 
 			handler := handlers.NewServerHandler(mockUsecase)
 			r := chi.NewRouter()
-			r.Post("/update/", handler.UpdateMetric2)
+			r.Post("/update/", handler.UpdateViaModel)
 
 			body, _ := json.Marshal(tt.requestBody)
 			req, err := http.NewRequest(http.MethodPost, "/update/", bytes.NewReader(body))
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedCode, rr.Code)
+			if tt.expectedBody != "" {
+				assert.JSONEq(t, tt.expectedBody, rr.Body.String())
+			}
+			mockUsecase.AssertExpectations(t)
+		})
+	}
+}
+
+func TestGetViaModel(t *testing.T) {
+	tests := []struct {
+		name         string
+		requestBody  models.Metrics
+		mockSetup    func(*mocks.ServerUseCase)
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name: "Success get metric via model",
+			requestBody: models.Metrics{
+				ID:    "testGauge",
+				MType: "gauge",
+			},
+			mockSetup: func(m *mocks.ServerUseCase) {
+				m.On("GetViaModel", mock.AnythingOfType("models.Metrics")).
+					Return(models.Metrics{
+						ID:    "testGauge",
+						MType: "gauge",
+						Value: func() *float64 { v := 123.45; return &v }(),
+					}, nil)
+			},
+			expectedCode: http.StatusOK,
+			expectedBody: `{"id":"testGauge","type":"gauge","value":123.45}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockUsecase := &mocks.ServerUseCase{}
+			tt.mockSetup(mockUsecase)
+
+			handler := handlers.NewServerHandler(mockUsecase)
+			r := chi.NewRouter()
+			r.Post("/value/", handler.GetViaModel)
+
+			body, _ := json.Marshal(tt.requestBody)
+			req, err := http.NewRequest(http.MethodPost, "/value/", bytes.NewReader(body))
 			require.NoError(t, err)
 
 			rr := httptest.NewRecorder()

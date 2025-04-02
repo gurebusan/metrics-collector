@@ -83,7 +83,7 @@ func (s *MemStorage) GetAllCounters() map[string]int64 {
 	return all
 }
 
-func (s *MemStorage) SaveToFile(path string) error {
+func (s *MemStorage) SaveBkpToFile(path string) error {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -104,7 +104,7 @@ func (s *MemStorage) SaveToFile(path string) error {
 	return nil
 }
 
-func (s *MemStorage) LoadFromFile(path string) error {
+func (s *MemStorage) LoadBkpFromFile(path string) error {
 	s.Lock()
 	defer s.Unlock()
 
