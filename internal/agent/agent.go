@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -80,12 +81,26 @@ func (a *Agent) SendMetrics() error {
 			return fmt.Errorf("failed to encode metric %v", err)
 		}
 
-		destination := fmt.Sprintf("%s/update/", a.ServerURL)
-		resp, err := a.client.Post(destination, "application/json", bytes.NewBuffer(body))
-
+		compressedBody, err := compressData(body)
 		if err != nil {
-			return fmt.Errorf("failed to send metric %s: %v", name, value)
+			return fmt.Errorf("failed to compress data: %v", err)
 		}
+
+		destination := fmt.Sprintf("%s/update/", a.ServerURL)
+
+		req, err := http.NewRequest("POST", destination, bytes.NewBuffer(compressedBody))
+		if err != nil {
+			return fmt.Errorf("failed to create request: %v", err)
+		}
+
+		req.Header.Set("Content-Encoding", "gzip")
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := a.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to send request: %v", err)
+		}
+
 		resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
@@ -190,4 +205,18 @@ func (a *Agent) CollectMetrics() {
 	a.Metrics["PollCount"] = models.Metrics{ID: "PollCount", MType: models.Counter, Delta: &pollCount}
 
 	a.PollCount++
+}
+
+func compressData(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+
+	if _, err := gz.Write(data); err != nil {
+		return nil, err
+	}
+	if err := gz.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }

@@ -8,6 +8,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
+	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/compressor/gziprespose"
+	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/compressor/mygzip"
 	mwLogger "github.com/zetcan333/metrics-collector/internal/handlers/middleware/logger"
 	"github.com/zetcan333/metrics-collector/internal/repo/storage/mem"
 	"github.com/zetcan333/metrics-collector/internal/setup"
@@ -29,6 +31,9 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(mwLogger.New(mylog))
+	r.Use(mygzip.GzipMiddleware)
+	r.Use(gziprespose.GzipResponseMiddleware)
+
 	setup := setup.NewSetup(h)
 	setup.SetRoutes(r)
 

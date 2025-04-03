@@ -1,6 +1,7 @@
 package agent_test
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -37,10 +38,19 @@ func TestSendMetrics(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Contains(t, r.URL.Path, "/update/", "Неправильный URL")
 
+		// Проверяем заголовок Content-Encoding
+		assert.Equal(t, "gzip", r.Header.Get("Content-Encoding"), "Данные должны быть сжаты в gzip")
+
+		// Декодируем тело запроса
+		gzReader, err := gzip.NewReader(r.Body)
+		assert.NoError(t, err, "Ошибка при создании gzip.Reader")
+		defer gzReader.Close()
+
 		var metric models.Metrics
-		err := json.NewDecoder(r.Body).Decode(&metric)
+		err = json.NewDecoder(gzReader).Decode(&metric)
 		assert.NoError(t, err, "Ошибка при декодировании JSON")
 		assert.NotEmpty(t, metric.ID, "ID метрики не должен быть пустым")
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
