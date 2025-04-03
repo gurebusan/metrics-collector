@@ -38,10 +38,12 @@ func main() {
 			storage = mem.NewStorage()
 			bkp = backup.NewBackupUsecase(storage)
 		} else {
+			log.Sugar().Infoln("postgres initialized")
 			pingHandler = ping.New(storage)
 		}
 	} else {
 		storage = mem.NewStorage()
+		log.Sugar().Infoln("in-memory storage initialized")
 		bkp = backup.NewBackupUsecase(storage)
 	}
 
