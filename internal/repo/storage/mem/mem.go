@@ -1,6 +1,7 @@
 package mem
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,7 +21,7 @@ func NewStorage() *MemStorage {
 		Metrics: make(map[string]models.Metrics),
 	}
 }
-func (s *MemStorage) UpdateMetric(metric models.Metrics) {
+func (s *MemStorage) UpdateMetric(ctx context.Context, metric models.Metrics) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -47,9 +48,10 @@ func (s *MemStorage) UpdateMetric(metric models.Metrics) {
 			Delta: &newDelta,
 		}
 	}
+	return nil
 }
 
-func (s *MemStorage) GetMetric(id string) (models.Metrics, error) {
+func (s *MemStorage) GetMetric(ctx context.Context, id string) (models.Metrics, error) {
 	s.RLock()
 	defer s.RUnlock()
 	metric, exists := s.Metrics[id]
@@ -59,7 +61,7 @@ func (s *MemStorage) GetMetric(id string) (models.Metrics, error) {
 	return metric, nil
 }
 
-func (s *MemStorage) GetAllGauges() map[string]float64 {
+func (s *MemStorage) GetAllGauges(ctx context.Context) (map[string]float64, error) {
 	s.RLock()
 	defer s.RUnlock()
 	all := make(map[string]float64)
@@ -68,10 +70,10 @@ func (s *MemStorage) GetAllGauges() map[string]float64 {
 			all[key] = *value.Value
 		}
 	}
-	return all
+	return all, nil
 }
 
-func (s *MemStorage) GetAllCounters() map[string]int64 {
+func (s *MemStorage) GetAllCounters(ctx context.Context) (map[string]int64, error) {
 	s.RLock()
 	defer s.RUnlock()
 	all := make(map[string]int64)
@@ -80,7 +82,7 @@ func (s *MemStorage) GetAllCounters() map[string]int64 {
 			all[key] = *value.Delta
 		}
 	}
-	return all
+	return all, nil
 }
 
 func (s *MemStorage) SaveBkpToFile(path string) error {
@@ -124,5 +126,10 @@ func (s *MemStorage) LoadBkpFromFile(path string) error {
 	}
 
 	s.Metrics = metrics
+	return nil
+}
+
+// mock Ping
+func (s *MemStorage) Ping(ctx context.Context) error {
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
 	"github.com/zetcan333/metrics-collector/internal/handlers/ping"
+	"github.com/zetcan333/metrics-collector/internal/repo/storage"
 	"github.com/zetcan333/metrics-collector/internal/repo/storage/mem"
 	"github.com/zetcan333/metrics-collector/internal/repo/storage/postgres"
 	"github.com/zetcan333/metrics-collector/internal/server"
@@ -15,26 +16,33 @@ import (
 )
 
 func main() {
+
 	log, err := zap.NewProduction()
 	if err != nil {
 		panic("cannot initialize zap")
 	}
 	defer log.Sync()
+
 	serverFlags := flags.NewServerFlags()
 	ctx := context.WithoutCancel(context.Background())
 
-	pgstorage, err := postgres.New(ctx, serverFlags.DataBaseDSN)
-	if err != nil {
-		log.Sugar().Errorln(err)
+	var storage storage.Storage
+	if serverFlags.DataBaseDSN != "" {
+		storage, err = postgres.NewStorage(ctx, serverFlags.DataBaseDSN)
+		if err != nil {
+			log.Sugar().Errorln("cannot initialize postgres, falling back to in-memory storage:", err)
+			storage = mem.NewStorage()
+		}
+	} else {
+		storage = mem.NewStorage()
 	}
-	ping := ping.New(pgstorage)
 
-	storage := mem.NewStorage()
-	serverUsecase := usecase.NewSeverUsecase(storage)
 	backup := backup.NewBackupUsecase(storage)
-	handlers := handlers.NewServerHandler(serverUsecase)
+	pingHandler := ping.New(storage)
 
-	server := server.NewServer(log, handlers, ping, serverFlags, backup)
+	serverUsecase := usecase.NewSeverUsecase(storage)
+	handlers := handlers.NewServerHandler(serverUsecase)
+	server := server.NewServer(log, handlers, pingHandler, serverFlags, backup)
 
 	server.Start(ctx)
 }
