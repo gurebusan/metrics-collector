@@ -1,13 +1,17 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/zetcan333/metrics-collector/internal/models"
 )
 
 // Структура агента
@@ -15,8 +19,8 @@ type Agent struct {
 	ServerURL      string
 	PollInterval   time.Duration
 	ReportInterval time.Duration
-	GaugeMetric    map[string]float64
-	CounterMetric  map[string]int64
+	Metrics        map[string]models.Metrics
+	PollCount      int64
 	client         http.Client
 	sync.RWMutex
 }
@@ -27,8 +31,7 @@ func NewAgent(serverURL string, pollInterval, reportInterval time.Duration) *Age
 		ServerURL:      serverURL,
 		PollInterval:   pollInterval,
 		ReportInterval: reportInterval,
-		GaugeMetric:    make(map[string]float64),
-		CounterMetric:  make(map[string]int64),
+		Metrics:        make(map[string]models.Metrics),
 	}
 }
 
@@ -70,28 +73,23 @@ func (a *Agent) Start(ctx context.Context) {
 func (a *Agent) SendMetrics() error {
 	a.RLock()
 	defer a.RUnlock()
-	//Отпправляем gauge-метрики
-	for name, value := range a.GaugeMetric {
-		destination := fmt.Sprintf("%s/update/gauge/%s/%v", a.ServerURL, name, value)
-		resp, err := a.client.Post(destination, "text/plain", nil)
+
+	for name, value := range a.Metrics {
+		body, err := json.Marshal(value)
 		if err != nil {
-			return fmt.Errorf("failed to send gauge metric %s: %v", name, value)
+			return fmt.Errorf("failed to encode metric %v", err)
+		}
+
+		destination := fmt.Sprintf("%s/update/", a.ServerURL)
+		resp, err := a.client.Post(destination, "application/json", bytes.NewBuffer(body))
+
+		if err != nil {
+			return fmt.Errorf("failed to send metric %s: %v", name, value)
 		}
 		resp.Body.Close()
+
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("server returned status %d for gauge metric %s", resp.StatusCode, name)
-		}
-	}
-	// Отпраялем counter-метрики
-	for name, value := range a.CounterMetric {
-		destination := fmt.Sprintf("%s/update/counter/%s/%v", a.ServerURL, name, value)
-		resp, err := a.client.Post(destination, "text/plain", nil)
-		if err != nil {
-			return fmt.Errorf("failed to send counter metric %s: %v", name, value)
-		}
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("server returned status %d for counter metric %s", resp.StatusCode, name)
+			return fmt.Errorf("server returned status %d for metric %s", resp.StatusCode, name)
 		}
 	}
 	return nil
@@ -103,35 +101,93 @@ func (a *Agent) CollectMetrics() {
 	runtime.ReadMemStats(&rtm)
 	a.Lock()
 	defer a.Unlock()
-	// Обновляем gauge-метрики
-	a.GaugeMetric["Alloc"] = float64(rtm.Alloc)
-	a.GaugeMetric["BuckHashSys"] = float64(rtm.BuckHashSys)
-	a.GaugeMetric["Frees"] = float64(rtm.Frees)
-	a.GaugeMetric["GCCPUFraction"] = float64(rtm.GCCPUFraction)
-	a.GaugeMetric["GCSys"] = float64(rtm.GCSys)
-	a.GaugeMetric["HeapAlloc"] = float64(rtm.HeapAlloc)
-	a.GaugeMetric["HeapIdle"] = float64(rtm.HeapIdle)
-	a.GaugeMetric["HeapInuse"] = float64(rtm.HeapInuse)
-	a.GaugeMetric["HeapObjects"] = float64(rtm.HeapObjects)
-	a.GaugeMetric["HeapReleased"] = float64(rtm.HeapReleased)
-	a.GaugeMetric["HeapSys"] = float64(rtm.HeapSys)
-	a.GaugeMetric["LastGC"] = float64(rtm.LastGC)
-	a.GaugeMetric["Lookups"] = float64(rtm.Lookups)
-	a.GaugeMetric["MCacheInuse"] = float64(rtm.MCacheInuse)
-	a.GaugeMetric["MCacheSys"] = float64(rtm.MCacheSys)
-	a.GaugeMetric["MSpanInuse"] = float64(rtm.MSpanInuse)
-	a.GaugeMetric["MSpanSys"] = float64(rtm.MSpanSys)
-	a.GaugeMetric["Mallocs"] = float64(rtm.Mallocs)
-	a.GaugeMetric["NextGC"] = float64(rtm.NextGC)
-	a.GaugeMetric["NumForcedGC"] = float64(rtm.NumForcedGC)
-	a.GaugeMetric["NumGC"] = float64(rtm.NumGC)
-	a.GaugeMetric["OtherSys"] = float64(rtm.OtherSys)
-	a.GaugeMetric["PauseTotalNs"] = float64(rtm.PauseTotalNs)
-	a.GaugeMetric["StackInuse"] = float64(rtm.StackInuse)
-	a.GaugeMetric["StackSys"] = float64(rtm.StackSys)
-	a.GaugeMetric["Sys"] = float64(rtm.Sys)
-	a.GaugeMetric["TotalAlloc"] = float64(rtm.TotalAlloc)
-	a.GaugeMetric["RandomValue"] = rand.Float64()
-	// Обновляем counter-метрики
-	a.CounterMetric["PollCount"]++
+
+	alloc := float64(rtm.Alloc)
+	a.Metrics["Alloc"] = models.Metrics{ID: "Alloc", MType: models.Gauge, Value: &alloc}
+
+	buckHashSys := float64(rtm.Frees)
+	a.Metrics["BuckHashSys"] = models.Metrics{ID: "BuckHashSys", MType: models.Gauge, Value: &buckHashSys}
+
+	frees := float64(rtm.Frees)
+	a.Metrics["Frees"] = models.Metrics{ID: "Frees", MType: models.Gauge, Value: &frees}
+
+	gCCPUFraction := rtm.GCCPUFraction
+	a.Metrics["GCCPUFraction"] = models.Metrics{ID: "GCCPUFraction", MType: models.Gauge, Value: &gCCPUFraction}
+
+	gCSys := float64(rtm.GCSys)
+	a.Metrics["GCSys"] = models.Metrics{ID: "GCSys", MType: models.Gauge, Value: &gCSys}
+
+	heapAlloc := float64(rtm.HeapAlloc)
+	a.Metrics["HeapAlloc"] = models.Metrics{ID: "HeapAlloc", MType: models.Gauge, Value: &heapAlloc}
+
+	heapIdle := float64(rtm.HeapIdle)
+	a.Metrics["HeapIdle"] = models.Metrics{ID: "HeapIdle", MType: models.Gauge, Value: &heapIdle}
+
+	heapInuse := float64(rtm.HeapInuse)
+	a.Metrics["HeapInuse"] = models.Metrics{ID: "HeapInuse", MType: models.Gauge, Value: &heapInuse}
+
+	heapObjects := float64(rtm.HeapObjects)
+	a.Metrics["HeapObjects"] = models.Metrics{ID: "HeapObjects", MType: models.Gauge, Value: &heapObjects}
+
+	heapReleased := float64(rtm.HeapReleased)
+	a.Metrics["HeapReleased"] = models.Metrics{ID: "HeapReleased", MType: models.Gauge, Value: &heapReleased}
+
+	heapSys := float64(rtm.HeapSys)
+	a.Metrics["HeapSys"] = models.Metrics{ID: "HeapSys", MType: models.Gauge, Value: &heapSys}
+
+	lastGC := float64(rtm.LastGC)
+	a.Metrics["LastGC"] = models.Metrics{ID: "LastGC", MType: models.Gauge, Value: &lastGC}
+
+	lookups := float64(rtm.Lookups)
+	a.Metrics["Lookups"] = models.Metrics{ID: "Lookups", MType: models.Gauge, Value: &lookups}
+
+	mCacheInuse := float64(rtm.MCacheInuse)
+	a.Metrics["MCacheInuse"] = models.Metrics{ID: "MCacheInuse", MType: models.Gauge, Value: &mCacheInuse}
+
+	mCacheSys := float64(rtm.MCacheSys)
+	a.Metrics["MCacheSys"] = models.Metrics{ID: "MCacheSys", MType: models.Gauge, Value: &mCacheSys}
+
+	mSpanInuse := float64(rtm.MSpanInuse)
+	a.Metrics["MSpanInuse"] = models.Metrics{ID: "MSpanInuse", MType: models.Gauge, Value: &mSpanInuse}
+
+	mSpanSys := float64(rtm.MSpanSys)
+	a.Metrics["MSpanSys"] = models.Metrics{ID: "MSpanSys", MType: models.Gauge, Value: &mSpanSys}
+
+	mallocs := float64(rtm.Mallocs)
+	a.Metrics["Mallocs"] = models.Metrics{ID: "Mallocs", MType: models.Gauge, Value: &mallocs}
+
+	nextGC := float64(rtm.NextGC)
+	a.Metrics["NextGC"] = models.Metrics{ID: "NextGC", MType: models.Gauge, Value: &nextGC}
+
+	numForcedGC := float64(rtm.NumForcedGC)
+	a.Metrics["NumForcedGC"] = models.Metrics{ID: "NumForcedGC", MType: models.Gauge, Value: &numForcedGC}
+
+	numGC := float64(rtm.NumGC)
+	a.Metrics["NumGC"] = models.Metrics{ID: "NumGC", MType: models.Gauge, Value: &numGC}
+
+	otherSys := float64(rtm.OtherSys)
+	a.Metrics["OtherSys"] = models.Metrics{ID: "OtherSys", MType: models.Gauge, Value: &otherSys}
+
+	pauseTotalNs := float64(rtm.PauseTotalNs)
+	a.Metrics["PauseTotalNs"] = models.Metrics{ID: "PauseTotalNs", MType: models.Gauge, Value: &pauseTotalNs}
+
+	stackInuse := float64(rtm.StackInuse)
+	a.Metrics["StackInuse"] = models.Metrics{ID: "StackInuse", MType: models.Gauge, Value: &stackInuse}
+
+	stackSys := float64(rtm.StackSys)
+	a.Metrics["StackSys"] = models.Metrics{ID: "StackSys", MType: models.Gauge, Value: &stackSys}
+
+	sys := float64(rtm.Sys)
+	a.Metrics["Sys"] = models.Metrics{ID: "Sys", MType: models.Gauge, Value: &sys}
+
+	totalAlloc := float64(rtm.TotalAlloc)
+	a.Metrics["TotalAlloc"] = models.Metrics{ID: "TotalAlloc", MType: models.Gauge, Value: &totalAlloc}
+
+	randomValue := rand.Float64()
+	a.Metrics["RandomValue"] = models.Metrics{ID: "RandomValue", MType: models.Gauge, Value: &randomValue}
+
+	pollCount := a.PollCount
+	a.Metrics["PollCount"] = models.Metrics{ID: "PollCount", MType: models.Counter, Delta: &pollCount}
+
+	a.PollCount++
 }

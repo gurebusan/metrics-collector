@@ -1,6 +1,9 @@
 package handlers_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,13 +12,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
+	"github.com/zetcan333/metrics-collector/internal/models"
 	me "github.com/zetcan333/metrics-collector/pkg/myerrors"
 )
 
 // Мок для ServerUseCase
+// Мок для ServerUseCase
 type mockUseCase struct {
-	updateMetricFunc func(metricType, metricName, metricValue string) error
-	getValueFunc     func(metricType, metricName string) (string, error)
+	updateMetricFunc  func(metricType, metricName, metricValue string) error
+	getValueFunc      func(metricType, metricName string) (string, error)
+	updateJSONFunc    func(metric models.Metrics) (models.Metrics, error)
+	getJSONFunc       func(metric models.Metrics) (models.Metrics, error)
+	getAllMetricsFunc func() (string, error)
 }
 
 func (m *mockUseCase) UpdateMetric(metricType, metricName, metricValue string) error {
@@ -26,8 +34,16 @@ func (m *mockUseCase) GetValue(metricType, metricName string) (string, error) {
 	return m.getValueFunc(metricType, metricName)
 }
 
+func (m *mockUseCase) UpdateJSON(metric models.Metrics) (models.Metrics, error) {
+	return m.updateJSONFunc(metric)
+}
+
+func (m *mockUseCase) GetJSON(metric models.Metrics) (models.Metrics, error) {
+	return m.getJSONFunc(metric)
+}
+
 func (m *mockUseCase) GetAllMetric() (string, error) {
-	return "", nil
+	return m.getAllMetricsFunc()
 }
 
 func TestUpdateHandler(t *testing.T) {
@@ -107,7 +123,7 @@ func TestUpdateHandler(t *testing.T) {
 
 			// Создаём роутер chi
 			r := chi.NewRouter()
-			r.Post("/update/{type}/{name}/{value}", handler.UpdateHandle)
+			r.Post("/update/{type}/{name}/{value}", handler.UpdateHandler)
 
 			// Создаём тестовый HTTP-запрос
 			req, err := http.NewRequest(http.MethodPost, tt.path, nil)
@@ -200,6 +216,190 @@ func TestGetValueHandler(t *testing.T) {
 
 			// Проверяем тело ответа
 			assert.Equal(t, tt.expectedBody, rr.Body.String(), "unexpected response body")
+		})
+	}
+}
+func TestUpdateJSONHandler(t *testing.T) {
+	tests := []struct {
+		name         string
+		requestBody  models.Metrics
+		mockFunc     func(metric models.Metrics) (models.Metrics, error)
+		expectedCode int
+	}{
+		{
+			name: "Valid JSON update",
+			requestBody: models.Metrics{
+				ID:    "testGauge",
+				MType: "gauge",
+				Value: func() *float64 { v := 123.45; return &v }(),
+			},
+			mockFunc: func(metric models.Metrics) (models.Metrics, error) {
+				return metric, nil
+			},
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:        "Invalid JSON format",
+			requestBody: models.Metrics{},
+			mockFunc: func(metric models.Metrics) (models.Metrics, error) {
+				return models.Metrics{}, me.ErrInvalidMetricType
+			},
+			expectedCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockUsecase := &mockUseCase{
+				updateJSONFunc: tt.mockFunc,
+			}
+			handler := handlers.NewServerHandler(mockUsecase)
+			r := chi.NewRouter()
+			r.Post("/update/", handler.UpdateJSONHandler)
+
+			requestBody, _ := json.Marshal(tt.requestBody)
+			req, err := http.NewRequest(http.MethodPost, "/update/", bytes.NewReader(requestBody))
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+			assert.Equal(t, tt.expectedCode, rr.Code)
+		})
+	}
+}
+
+func TestGetJSONHandler(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        models.Metrics
+		mockFunc     func(models.Metrics) (models.Metrics, error)
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name: "Valid gauge metric",
+			input: models.Metrics{
+				ID:    "Alloc",
+				MType: "gauge",
+			},
+			mockFunc: func(m models.Metrics) (models.Metrics, error) {
+				m.Value = new(float64)
+				*m.Value = 123.45
+				return m, nil
+			},
+			expectedCode: http.StatusOK,
+			expectedBody: `{"id":"Alloc","type":"gauge","value":123.45}`,
+		},
+		{
+			name: "Valid counter metric",
+			input: models.Metrics{
+				ID:    "PollCount",
+				MType: "counter",
+			},
+			mockFunc: func(m models.Metrics) (models.Metrics, error) {
+				m.Delta = new(int64)
+				*m.Delta = 10
+				return m, nil
+			},
+			expectedCode: http.StatusOK,
+			expectedBody: `{"id":"PollCount","type":"counter","delta":10}`,
+		},
+		{
+			name: "Metric not found",
+			input: models.Metrics{
+				ID:    "Unknown",
+				MType: "gauge",
+			},
+			mockFunc: func(m models.Metrics) (models.Metrics, error) {
+				return models.Metrics{}, me.ErrMetricNotFound
+			},
+			expectedCode: http.StatusNotFound,
+			expectedBody: "metric not found\n",
+		},
+		{
+			name: "Invalid metric type",
+			input: models.Metrics{
+				ID:    "Invalid",
+				MType: "unknown",
+			},
+			mockFunc: func(m models.Metrics) (models.Metrics, error) {
+				return models.Metrics{}, me.ErrInvalidMetricType
+			},
+			expectedCode: http.StatusBadRequest,
+			expectedBody: "invalid metric type\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockUsecase := &mockUseCase{
+				getJSONFunc: tt.mockFunc,
+			}
+
+			handler := handlers.NewServerHandler(mockUsecase)
+
+			r := chi.NewRouter()
+			r.Post("/value/", handler.GetJSONHandler)
+
+			body, _ := json.Marshal(tt.input)
+			req, err := http.NewRequest(http.MethodPost, "/value/", bytes.NewBuffer(body))
+			require.NoError(t, err, "failed to create request")
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedCode, rr.Code, "unexpected status code")
+			if tt.expectedCode == http.StatusOK {
+				assert.JSONEq(t, tt.expectedBody, rr.Body.String(), "unexpected response body")
+			} else {
+				assert.Equal(t, tt.expectedBody, rr.Body.String(), "unexpected response body")
+			}
+		})
+	}
+}
+
+func TestGetAllMetricsHandler(t *testing.T) {
+	tests := []struct {
+		name         string
+		mockFunc     func() (string, error)
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name: "Valid metrics page",
+			mockFunc: func() (string, error) {
+				return "<html>Metrics</html>", nil
+			},
+			expectedCode: http.StatusOK,
+			expectedBody: "<html>Metrics</html>",
+		},
+		{
+			name: "Internal server error",
+			mockFunc: func() (string, error) {
+				return "", errors.New("internal error")
+			},
+			expectedCode: http.StatusInternalServerError,
+			expectedBody: "internal server error\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockUsecase := &mockUseCase{
+				getAllMetricsFunc: tt.mockFunc,
+			}
+			handler := handlers.NewServerHandler(mockUsecase)
+			r := chi.NewRouter()
+			r.Get("/metrics", handler.GetAllMetricsHandler)
+
+			req, err := http.NewRequest(http.MethodGet, "/metrics", nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedCode, rr.Code)
+			assert.Equal(t, tt.expectedBody, rr.Body.String())
 		})
 	}
 }

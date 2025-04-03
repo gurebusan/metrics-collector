@@ -1,61 +1,77 @@
 package mem
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/zetcan333/metrics-collector/internal/models"
+)
 
 type MemStorage struct {
 	sync.RWMutex
-	gauge   map[string]float64
-	counter map[string]int64
+	Metrics map[string]models.Metrics
 }
 
 func NewStorage() *MemStorage {
 	return &MemStorage{
-		gauge:   make(map[string]float64),
-		counter: map[string]int64{},
+		Metrics: make(map[string]models.Metrics),
 	}
 }
-func (s *MemStorage) UpdateGauge(name string, value float64) {
+func (s *MemStorage) UpdateMetric(metric models.Metrics) {
 	s.Lock()
 	defer s.Unlock()
-	s.gauge[name] = value
+
+	existing, exists := s.Metrics[metric.ID]
+
+	switch metric.MType {
+	case models.Gauge:
+		s.Metrics[metric.ID] = models.Metrics{
+			MType: models.Gauge,
+			ID:    metric.ID,
+			Value: metric.Value,
+		}
+	case models.Counter:
+		var newDelta int64
+		if exists && existing.Delta != nil {
+			newDelta = *existing.Delta
+		}
+		if metric.Delta != nil {
+			newDelta += *metric.Delta
+		}
+		s.Metrics[metric.ID] = models.Metrics{
+			MType: models.Counter,
+			ID:    metric.ID,
+			Delta: &newDelta,
+		}
+	}
 }
 
-func (s *MemStorage) UpdateCounter(name string, value int64) {
-	s.Lock()
-	defer s.Unlock()
-	s.counter[name] += value
-}
-
-func (s *MemStorage) GetGauge(name string) (float64, bool) {
+func (s *MemStorage) GetMetric(id string) (models.Metrics, bool) {
 	s.RLock()
 	defer s.RUnlock()
-	val, ok := s.gauge[name]
-	return val, ok
+	metric, exists := s.Metrics[id]
+	return metric, exists
 }
 
-func (s *MemStorage) GetCounter(name string) (int64, bool) {
-	s.RLock()
-	defer s.RUnlock()
-	val, ok := s.counter[name]
-	return val, ok
-}
-
-func (s *MemStorage) GetAllGauge() map[string]float64 {
+func (s *MemStorage) GetAllGauges() map[string]float64 {
 	s.RLock()
 	defer s.RUnlock()
 	all := make(map[string]float64)
-	for key, value := range s.gauge {
-		all[key] = value
+	for key, value := range s.Metrics {
+		if value.Value != nil {
+			all[key] = *value.Value
+		}
 	}
 	return all
 }
 
-func (s *MemStorage) GetAllCounter() map[string]int64 {
+func (s *MemStorage) GetAllCounters() map[string]int64 {
 	s.RLock()
 	defer s.RUnlock()
 	all := make(map[string]int64)
-	for key, value := range s.counter {
-		all[key] = value
+	for key, value := range s.Metrics {
+		if value.Delta != nil {
+			all[key] = *value.Delta
+		}
 	}
 	return all
 }
