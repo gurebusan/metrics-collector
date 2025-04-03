@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"strconv"
@@ -12,10 +13,10 @@ import (
 )
 
 type ServerRepository interface {
-	UpdateMetric(metric models.Metrics)
-	GetMetric(id string) (models.Metrics, error)
-	GetAllGauges() map[string]float64
-	GetAllCounters() map[string]int64
+	UpdateMetric(ctx context.Context, metric models.Metrics) error
+	GetMetric(ctx context.Context, id string) (models.Metrics, error)
+	GetAllGauges(ctx context.Context) (map[string]float64, error)
+	GetAllCounters(ctx context.Context) (map[string]int64, error)
 }
 
 type SeverUsecase struct {
@@ -26,6 +27,8 @@ func NewSeverUsecase(repo ServerRepository) *SeverUsecase {
 	return &SeverUsecase{repo: repo}
 }
 
+var ctx = context.Background()
+
 func (s *SeverUsecase) UpdateMetric(metricType, metricName, metricValue string) error {
 	switch metricType {
 	case "gauge":
@@ -33,7 +36,7 @@ func (s *SeverUsecase) UpdateMetric(metricType, metricName, metricValue string) 
 		if err != nil {
 			return fmt.Errorf("%w: %v", myerrors.ErrInvalidGaugeValue, err)
 		}
-		s.repo.UpdateMetric(models.Metrics{
+		s.repo.UpdateMetric(ctx, models.Metrics{
 			MType: "gauge",
 			ID:    metricName,
 			Value: &value,
@@ -44,7 +47,7 @@ func (s *SeverUsecase) UpdateMetric(metricType, metricName, metricValue string) 
 		if err != nil {
 			return fmt.Errorf("%w: %v", myerrors.ErrInvalidCounterValue, err)
 		}
-		s.repo.UpdateMetric(models.Metrics{
+		s.repo.UpdateMetric(ctx, models.Metrics{
 			MType: "counter",
 			ID:    metricName,
 			Delta: &value,
@@ -57,7 +60,7 @@ func (s *SeverUsecase) UpdateMetric(metricType, metricName, metricValue string) 
 }
 
 func (s *SeverUsecase) GetMetric(metricType, metricName string) (string, error) {
-	metric, err := s.repo.GetMetric(metricName)
+	metric, err := s.repo.GetMetric(ctx, metricName)
 	if err != nil {
 		return "", err
 	}
@@ -84,9 +87,9 @@ func (s *SeverUsecase) UpdateViaModel(metric models.Metrics) (models.Metrics, er
 		if metric.Value == nil {
 			return models.Metrics{}, myerrors.ErrInvalidGaugeValue
 		}
-		s.repo.UpdateMetric(metric)
+		s.repo.UpdateMetric(ctx, metric)
 
-		updatedMetric, err := s.repo.GetMetric(metric.ID)
+		updatedMetric, err := s.repo.GetMetric(ctx, metric.ID)
 		if err != nil {
 			return models.Metrics{}, err
 		}
@@ -97,9 +100,9 @@ func (s *SeverUsecase) UpdateViaModel(metric models.Metrics) (models.Metrics, er
 			return models.Metrics{}, myerrors.ErrInvalidCounterValue
 		}
 
-		s.repo.UpdateMetric(metric)
+		s.repo.UpdateMetric(ctx, metric)
 
-		updatedMetric, err := s.repo.GetMetric(metric.ID)
+		updatedMetric, err := s.repo.GetMetric(ctx, metric.ID)
 		if err != nil {
 			return models.Metrics{}, err
 		}
@@ -115,7 +118,7 @@ func (s *SeverUsecase) GetViaModel(metric models.Metrics) (models.Metrics, error
 		return models.Metrics{}, myerrors.ErrInvalidMetricType
 	}
 
-	storedMetric, err := s.repo.GetMetric(metric.ID)
+	storedMetric, err := s.repo.GetMetric(ctx, metric.ID)
 	if err != nil {
 		return models.Metrics{}, err
 	}
@@ -124,6 +127,14 @@ func (s *SeverUsecase) GetViaModel(metric models.Metrics) (models.Metrics, error
 }
 
 func (s *SeverUsecase) GetAllMetrics() (string, error) {
+	gauges, err := s.repo.GetAllGauges(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get all gauges: %w", err)
+	}
+	counters, err := s.repo.GetAllCounters(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get all counters: %w", err)
+	}
 	tmpl := `<html>
 		<head><title>Metrics</title></head>
 		<body>
@@ -142,8 +153,8 @@ func (s *SeverUsecase) GetAllMetrics() (string, error) {
 		Gauges   map[string]float64
 		Counters map[string]int64
 	}{
-		Gauges:   s.repo.GetAllGauges(),
-		Counters: s.repo.GetAllCounters(),
+		Gauges:   gauges,
+		Counters: counters,
 	}
 	t, err := template.New("metrics").Parse(tmpl)
 	if err != nil {
