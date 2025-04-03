@@ -44,8 +44,6 @@ func main() {
 		bkp = backup.NewBackupUsecase(storage)
 	}
 
-	pingHandler = ping.New(storage)
-
 	serverUsecase := usecase.NewSeverUsecase(storage)
 	handlers := handlers.NewServerHandler(serverUsecase)
 	server := server.NewServer(log, handlers, pingHandler, serverFlags, bkp)
