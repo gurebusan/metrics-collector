@@ -26,23 +26,29 @@ func main() {
 	serverFlags := flags.NewServerFlags()
 	ctx := context.WithoutCancel(context.Background())
 
-	var storage storage.Storage
+	var (
+		storage     storage.Storage
+		pingHandler *ping.PingHandler
+		bkp         *backup.BackupUsecase
+	)
 	if serverFlags.DataBaseDSN != "" {
 		storage, err = postgres.NewStorage(ctx, serverFlags.DataBaseDSN)
 		if err != nil {
 			log.Sugar().Errorln("cannot initialize postgres, falling back to in-memory storage:", zap.Error(err))
 			storage = mem.NewStorage()
+			bkp = backup.NewBackupUsecase(storage)
 		}
+		pingHandler = ping.New(storage)
 	} else {
 		storage = mem.NewStorage()
+		bkp = backup.NewBackupUsecase(storage)
 	}
 
-	backup := backup.NewBackupUsecase(storage)
-	pingHandler := ping.New(storage)
+	pingHandler = ping.New(storage)
 
 	serverUsecase := usecase.NewSeverUsecase(storage)
 	handlers := handlers.NewServerHandler(serverUsecase)
-	server := server.NewServer(log, handlers, pingHandler, serverFlags, backup)
+	server := server.NewServer(log, handlers, pingHandler, serverFlags, bkp)
 
 	server.Start(ctx)
 }

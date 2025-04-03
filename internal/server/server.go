@@ -52,7 +52,8 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 }
 
 func (s *Server) Start(ctx context.Context) {
-	if s.flags.DataBaseDSN == "" {
+
+	if s.backup != nil {
 		if s.flags.Restore {
 			if err := s.backup.LoadBackup(s.flags.FileStoragePath); err != nil {
 				s.log.Sugar().Errorln("failed to load backup", zap.Error(err))
@@ -77,7 +78,7 @@ func (s *Server) Start(ctx context.Context) {
 		}
 	}()
 
-	if s.flags.DataBaseDSN == "" {
+	if s.backup != nil {
 		ticker := time.NewTicker(s.flags.StoreInterval)
 		defer ticker.Stop()
 
@@ -106,7 +107,7 @@ func (s *Server) Start(ctx context.Context) {
 
 	s.log.Sugar().Infoln("Shutting down server...")
 
-	if s.flags.DataBaseDSN == "" {
+	if s.backup != nil {
 		if err := s.backup.SaveBackup(s.flags.FileStoragePath); err != nil {
 			s.log.Sugar().Errorln("Failed to save final backup", zap.Error(err))
 		} else {
