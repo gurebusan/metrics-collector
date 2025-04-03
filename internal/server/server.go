@@ -35,7 +35,9 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", handlers.GetAllMetrics)
-		r.Get("/ping", ping.Ping)
+		if flags.DataBaseDSN != "" {
+			r.Get("/ping", ping.Ping)
+		}
 		r.Route("/update", func(r chi.Router) {
 			r.Post("/{type}/{name}/{value}", handlers.UpdateMetric)
 			r.Post("/", handlers.UpdateViaModel)
