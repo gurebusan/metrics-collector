@@ -37,8 +37,9 @@ func main() {
 			log.Sugar().Errorln("cannot initialize postgres, falling back to in-memory storage:", zap.Error(err))
 			storage = mem.NewStorage()
 			bkp = backup.NewBackupUsecase(storage)
+		} else {
+			pingHandler = ping.New(storage)
 		}
-		pingHandler = ping.New(storage)
 	} else {
 		storage = mem.NewStorage()
 		bkp = backup.NewBackupUsecase(storage)
