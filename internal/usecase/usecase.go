@@ -1,4 +1,4 @@
-package usercase
+package usecase
 
 import (
 	"fmt"
@@ -8,12 +8,12 @@ import (
 
 	"github.com/zetcan333/metrics-collector/internal/lib/format/float"
 	"github.com/zetcan333/metrics-collector/internal/models"
-	me "github.com/zetcan333/metrics-collector/pkg/myerrors"
+	"github.com/zetcan333/metrics-collector/pkg/myerrors"
 )
 
 type ServerRepository interface {
 	UpdateMetric(metric models.Metrics)
-	GetMetric(id string) (models.Metrics, bool)
+	GetMetric(id string) (models.Metrics, error)
 	GetAllGauges() map[string]float64
 	GetAllCounters() map[string]int64
 }
@@ -31,7 +31,7 @@ func (s *SeverUsecase) UpdateMetric(metricType, metricName, metricValue string) 
 	case "gauge":
 		value, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
-			return fmt.Errorf("%w: %v", me.ErrInvalidGaugeValue, err)
+			return fmt.Errorf("%w: %v", myerrors.ErrInvalidGaugeValue, err)
 		}
 		s.repo.UpdateMetric(models.Metrics{
 			MType: "gauge",
@@ -42,7 +42,7 @@ func (s *SeverUsecase) UpdateMetric(metricType, metricName, metricValue string) 
 	case "counter":
 		value, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
-			return fmt.Errorf("%w: %v", me.ErrInvalidCounterValue, err)
+			return fmt.Errorf("%w: %v", myerrors.ErrInvalidCounterValue, err)
 		}
 		s.repo.UpdateMetric(models.Metrics{
 			MType: "counter",
@@ -51,84 +51,79 @@ func (s *SeverUsecase) UpdateMetric(metricType, metricName, metricValue string) 
 		})
 
 	default:
-		return me.ErrInvalidMetricType
+		return myerrors.ErrInvalidMetricType
 	}
 	return nil
 }
 
-func (s *SeverUsecase) GetValue(metricType, metricName string) (string, error) {
-	metric, ok := s.repo.GetMetric(metricName)
-	if !ok {
-		return "", me.ErrMetricNotFound
+func (s *SeverUsecase) GetMetric(metricType, metricName string) (string, error) {
+	metric, err := s.repo.GetMetric(metricName)
+	if err != nil {
+		return "", err
 	}
 
 	switch metricType {
 	case "gauge":
-		if metric.Value == nil {
-			return "", me.ErrMetricNotFound
-		}
 		return float.FormatFloat(*metric.Value), nil
 
 	case "counter":
-		if metric.Delta == nil {
-			return "", me.ErrMetricNotFound
-		}
 		return fmt.Sprintf("%d", *metric.Delta), nil
 
 	default:
-		return "", me.ErrInvalidMetricType
+		return "", myerrors.ErrInvalidMetricType
 	}
 }
 
-func (s *SeverUsecase) UpdateJSON(metric models.Metrics) (models.Metrics, error) {
+func (s *SeverUsecase) UpdateViaModel(metric models.Metrics) (models.Metrics, error) {
 	if metric.MType != "gauge" && metric.MType != "counter" {
-		return models.Metrics{}, me.ErrInvalidMetricType
+		return models.Metrics{}, myerrors.ErrInvalidMetricType
 	}
 	switch metric.MType {
+
 	case "gauge":
 		if metric.Value == nil {
-			return models.Metrics{}, me.ErrInvalidGaugeValue
+			return models.Metrics{}, myerrors.ErrInvalidGaugeValue
 		}
 		s.repo.UpdateMetric(metric)
 
-		updatedMetric, exists := s.repo.GetMetric(metric.ID)
-		if !exists {
-			return models.Metrics{}, me.ErrMetricNotFound
+		updatedMetric, err := s.repo.GetMetric(metric.ID)
+		if err != nil {
+			return models.Metrics{}, err
 		}
 		return updatedMetric, nil
+
 	case "counter":
 		if metric.Delta == nil {
-			return models.Metrics{}, me.ErrInvalidCounterValue
+			return models.Metrics{}, myerrors.ErrInvalidCounterValue
 		}
+
 		s.repo.UpdateMetric(metric)
 
-		updatedMetric, exists := s.repo.GetMetric(metric.ID)
-		if !exists {
-			return models.Metrics{}, me.ErrMetricNotFound
+		updatedMetric, err := s.repo.GetMetric(metric.ID)
+		if err != nil {
+			return models.Metrics{}, err
 		}
 		return updatedMetric, nil
 	}
-	return models.Metrics{}, me.ErrInvalidMetricType
+
+	return models.Metrics{}, myerrors.ErrInvalidMetricType
 }
 
-func (s *SeverUsecase) GetJSON(metric models.Metrics) (models.Metrics, error) {
+func (s *SeverUsecase) GetViaModel(metric models.Metrics) (models.Metrics, error) {
 
 	if metric.MType != "gauge" && metric.MType != "counter" {
-		return models.Metrics{}, me.ErrInvalidMetricType
-	}
-	if metric.ID == "" {
-		return models.Metrics{}, me.ErrMetricNotFound
+		return models.Metrics{}, myerrors.ErrInvalidMetricType
 	}
 
-	storedMetric, exists := s.repo.GetMetric(metric.ID)
-	if !exists {
-		return models.Metrics{}, me.ErrMetricNotFound
+	storedMetric, err := s.repo.GetMetric(metric.ID)
+	if err != nil {
+		return models.Metrics{}, err
 	}
 
 	return storedMetric, nil
 }
 
-func (s *SeverUsecase) GetAllMetric() (string, error) {
+func (s *SeverUsecase) GetAllMetrics() (string, error) {
 	tmpl := `<html>
 		<head><title>Metrics</title></head>
 		<body>

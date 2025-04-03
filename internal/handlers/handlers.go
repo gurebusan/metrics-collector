@@ -8,16 +8,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/zetcan333/metrics-collector/internal/models"
-	me "github.com/zetcan333/metrics-collector/pkg/myerrors"
+	"github.com/zetcan333/metrics-collector/pkg/myerrors"
 )
 
-//go:generate go run github.com/vektra/mockery/v2@v2.52.3 --name=Updater
+//go:generate go run github.com/vektra/mockery/v2@v2.52.3 --name=ServerUseCase
 type ServerUseCase interface {
 	UpdateMetric(metricType, metricName, metricValue string) error
-	GetValue(metricType, metricName string) (string, error)
-	UpdateJSON(metric models.Metrics) (models.Metrics, error)
-	GetJSON(metric models.Metrics) (models.Metrics, error)
-	GetAllMetric() (string, error)
+	GetMetric(metricType, metricName string) (string, error)
+	UpdateViaModel(metric models.Metrics) (models.Metrics, error)
+	GetViaModel(metric models.Metrics) (models.Metrics, error)
+	GetAllMetrics() (string, error)
 }
 
 type ServerHandler struct {
@@ -28,8 +28,8 @@ func NewServerHandler(suc ServerUseCase) *ServerHandler {
 	return &ServerHandler{serverUseCase: suc}
 }
 
-// UpdateHandler обрабатывает запросы на обновление метрик
-func (h *ServerHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+// UpdateMetric обрабатывает запросы на обновление метрик
+func (h *ServerHandler) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	metricType := chi.URLParam(r, "type")
 	metricName := chi.URLParam(r, "name")
 	metricValue := chi.URLParam(r, "value")
@@ -41,32 +41,29 @@ func (h *ServerHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.serverUseCase.UpdateMetric(metricType, metricName, metricValue); err != nil {
 		switch {
-		case errors.Is(err, me.ErrInvalidMetricType):
+		case isBadRequest(err):
 			http.Error(w, err.Error(), http.StatusBadRequest)
-		case errors.Is(err, me.ErrInvalidGaugeValue):
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		case errors.Is(err, me.ErrInvalidCounterValue):
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		default:
 			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
 		}
-		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 }
 
-// GetValueHandler возвращает значние метрики
-func (h *ServerHandler) GetValueHandler(w http.ResponseWriter, r *http.Request) {
+// GetMetric возвращает значние метрики
+func (h *ServerHandler) GetMetric(w http.ResponseWriter, r *http.Request) {
 	metricType := chi.URLParam(r, "type")
 	metricName := chi.URLParam(r, "name")
 
-	res, err := h.serverUseCase.GetValue(metricType, metricName)
+	res, err := h.serverUseCase.GetMetric(metricType, metricName)
 	if err != nil {
 		switch {
-		case errors.Is(err, me.ErrMetricNotFound):
+		case errors.Is(err, myerrors.ErrMetricNotFound):
 			http.Error(w, err.Error(), http.StatusNotFound)
-		case errors.Is(err, me.ErrInvalidMetricType):
+		case errors.Is(err, myerrors.ErrInvalidMetricType):
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		default:
 			http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -75,24 +72,23 @@ func (h *ServerHandler) GetValueHandler(w http.ResponseWriter, r *http.Request) 
 	fmt.Fprintf(w, "%s", res)
 }
 
-func (h *ServerHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Request) {
+func (h *ServerHandler) UpdateViaModel(w http.ResponseWriter, r *http.Request) {
 	var metric models.Metrics
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
 		http.Error(w, "invalid JSON format", http.StatusBadRequest)
 		return
 	}
 
-	updatedMetric, err := h.serverUseCase.UpdateJSON(metric)
+	updatedMetric, err := h.serverUseCase.UpdateViaModel(metric)
 	if err != nil {
 		switch {
-		case errors.Is(err, me.ErrInvalidMetricType),
-			errors.Is(err, me.ErrInvalidGaugeValue),
-			errors.Is(err, me.ErrInvalidCounterValue):
+		case isBadRequest(err):
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		default:
 			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
 		}
-		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -100,24 +96,26 @@ func (h *ServerHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(updatedMetric)
 }
 
-func (h *ServerHandler) GetJSONHandler(w http.ResponseWriter, r *http.Request) {
+func (h *ServerHandler) GetViaModel(w http.ResponseWriter, r *http.Request) {
 	var metric models.Metrics
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
 		http.Error(w, "invalid JSON format", http.StatusBadRequest)
 		return
 	}
 
-	result, err := h.serverUseCase.GetJSON(metric)
+	result, err := h.serverUseCase.GetViaModel(metric)
 	if err != nil {
 		switch {
-		case errors.Is(err, me.ErrMetricNotFound):
+		case errors.Is(err, myerrors.ErrMetricNotFound):
 			http.Error(w, err.Error(), http.StatusNotFound)
-		case errors.Is(err, me.ErrInvalidMetricType):
+			return
+		case errors.Is(err, myerrors.ErrInvalidMetricType):
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		default:
 			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
 		}
-		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -126,8 +124,8 @@ func (h *ServerHandler) GetJSONHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetAllMetricsHandler возвращает все метрики в формате HTML
-func (h *ServerHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Request) {
-	html, err := h.serverUseCase.GetAllMetric()
+func (h *ServerHandler) GetAllMetrics(w http.ResponseWriter, r *http.Request) {
+	html, err := h.serverUseCase.GetAllMetrics()
 	if err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
@@ -135,4 +133,10 @@ func (h *ServerHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(html))
+}
+
+func isBadRequest(err error) bool {
+	return errors.Is(err, myerrors.ErrInvalidMetricType) ||
+		errors.Is(err, myerrors.ErrInvalidGaugeValue) ||
+		errors.Is(err, myerrors.ErrInvalidCounterValue)
 }
