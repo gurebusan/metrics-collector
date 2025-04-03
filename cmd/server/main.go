@@ -30,7 +30,7 @@ func main() {
 	if serverFlags.DataBaseDSN != "" {
 		storage, err = postgres.NewStorage(ctx, serverFlags.DataBaseDSN)
 		if err != nil {
-			log.Sugar().Errorln("cannot initialize postgres, falling back to in-memory storage:", err)
+			log.Sugar().Errorln("cannot initialize postgres, falling back to in-memory storage:", zap.Error(err))
 			storage = mem.NewStorage()
 		}
 	} else {

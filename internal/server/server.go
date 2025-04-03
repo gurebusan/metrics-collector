@@ -35,7 +35,7 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", handlers.GetAllMetrics)
-		if flags.DataBaseDSN != "" {
+		if ping != nil {
 			r.Get("/ping", ping.Ping)
 		}
 		r.Route("/update", func(r chi.Router) {
@@ -87,9 +87,11 @@ func (s *Server) Start(ctx context.Context) {
 				case <-ticker.C:
 					if err := s.backup.SaveBackup(s.flags.FileStoragePath); err != nil {
 						s.log.Sugar().Errorln("Failed to save backup", zap.Error(err))
-						return
+
+					} else {
+						s.log.Sugar().Infoln("Backup saved")
 					}
-					s.log.Sugar().Infoln("Backup saved")
+
 				case <-ctx.Done():
 					return
 				}
