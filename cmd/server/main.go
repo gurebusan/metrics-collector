@@ -48,7 +48,7 @@ func main() {
 	}
 
 	serverUsecase := usecase.NewSeverUsecase(storage)
-	handlers := handlers.NewServerHandler(serverUsecase)
+	handlers := handlers.NewServerHandler(log, serverUsecase)
 	server := server.NewServer(log, handlers, pingHandler, serverFlags, bkp)
 
 	server.Start(ctx)

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
 	"github.com/zetcan333/metrics-collector/internal/handlers/mocks"
+	"github.com/zetcan333/metrics-collector/internal/lib/zapdiscard"
 	"github.com/zetcan333/metrics-collector/internal/models"
 	"github.com/zetcan333/metrics-collector/pkg/myerrors"
 )
@@ -49,7 +50,7 @@ func TestUpdateMetric(t *testing.T) {
 			mockUsecase := &mocks.ServerUseCase{}
 			tt.mockSetup(mockUsecase)
 
-			handler := handlers.NewServerHandler(mockUsecase)
+			handler := handlers.NewServerHandler(zapdiscard.NewDiscardLogger(), mockUsecase)
 			r := chi.NewRouter()
 			r.Post("/update/{type}/{name}/{value}", handler.UpdateMetric)
 
@@ -101,7 +102,7 @@ func TestGetMetric(t *testing.T) {
 			mockUsecase := &mocks.ServerUseCase{}
 			tt.mockSetup(mockUsecase)
 
-			handler := handlers.NewServerHandler(mockUsecase)
+			handler := handlers.NewServerHandler(zapdiscard.NewDiscardLogger(), mockUsecase)
 			r := chi.NewRouter()
 			r.Get("/value/{type}/{name}", handler.GetMetric)
 
@@ -151,7 +152,7 @@ func TestUpdateViaModel(t *testing.T) {
 			mockUsecase := &mocks.ServerUseCase{}
 			tt.mockSetup(mockUsecase)
 
-			handler := handlers.NewServerHandler(mockUsecase)
+			handler := handlers.NewServerHandler(zapdiscard.NewDiscardLogger(), mockUsecase)
 			r := chi.NewRouter()
 			r.Post("/update/", handler.UpdateViaModel)
 
@@ -203,7 +204,7 @@ func TestGetViaModel(t *testing.T) {
 			mockUsecase := &mocks.ServerUseCase{}
 			tt.mockSetup(mockUsecase)
 
-			handler := handlers.NewServerHandler(mockUsecase)
+			handler := handlers.NewServerHandler(zapdiscard.NewDiscardLogger(), mockUsecase)
 			r := chi.NewRouter()
 			r.Post("/value/", handler.GetViaModel)
 
@@ -245,7 +246,7 @@ func TestGetAllMetrics(t *testing.T) {
 			mockUsecase := &mocks.ServerUseCase{}
 			tt.mockSetup(mockUsecase)
 
-			handler := handlers.NewServerHandler(mockUsecase)
+			handler := handlers.NewServerHandler(zapdiscard.NewDiscardLogger(), mockUsecase)
 			r := chi.NewRouter()
 			r.Get("/", handler.GetAllMetrics)
 
@@ -297,7 +298,7 @@ func TestUpdateMetricsWithBatc(t *testing.T) {
 			mockUsecase := &mocks.ServerUseCase{}
 			tt.mockSetup(mockUsecase)
 
-			handler := handlers.NewServerHandler(mockUsecase)
+			handler := handlers.NewServerHandler(zapdiscard.NewDiscardLogger(), mockUsecase)
 			r := chi.NewRouter()
 			r.Post("/updates/", handler.UpdateMetricsWithBatch)
 

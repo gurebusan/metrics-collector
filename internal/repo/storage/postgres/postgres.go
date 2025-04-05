@@ -160,9 +160,9 @@ func (p *PgStorage) UpdateMetricsWithBatch(ctx context.Context, metrics []models
 		switch metric.MType {
 		case models.Gauge:
 			_, err = tx.Exec(ctx, `
-				INSERT INTO metrics (id, type, value, delta)
-				VALUES ($1, $2, $3, 0)
-				ON CONFLICT (id) DO UPDATE
+				INSERT INTO metrics (id, type, value, delta) 
+				VALUES ($1, $2, $3, 0) 
+				ON CONFLICT (id) DO UPDATE 
 				SET value = $3, type = $2
 			`, metric.ID, metric.MType, *metric.Value)
 		case models.Counter:
@@ -174,6 +174,7 @@ func (p *PgStorage) UpdateMetricsWithBatch(ctx context.Context, metrics []models
 			`, metric.ID, metric.MType, *metric.Delta)
 		}
 		if err != nil {
+			tx.Rollback(ctx)
 			return fmt.Errorf("%s: %w", op, err)
 		}
 	}

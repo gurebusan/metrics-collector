@@ -45,7 +45,7 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 			r.Post("/", handlers.UpdateViaModel)
 		})
 
-		r.Post("/updates", handlers.UpdateMetricsWithBatch)
+		r.Post("/updates/", handlers.UpdateMetricsWithBatch)
 
 		r.Route("/value", func(r chi.Router) {
 			r.Get("/{type}/{name}", handlers.GetMetric)
