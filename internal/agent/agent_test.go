@@ -78,7 +78,7 @@ func TestSendMetricsBatch(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		assert.Equal(t, http.MethodPost, r.Method, "Должен быть POST-запрос")
-		assert.Equal(t, "/updates", r.URL.Path, "Неправильный путь")
+		assert.Equal(t, "/updates/", r.URL.Path, "Неправильный путь")
 
 		assert.Equal(t, "gzip", r.Header.Get("Content-Encoding"), "Должно быть gzip-сжатие")
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"), "Должен быть JSON")

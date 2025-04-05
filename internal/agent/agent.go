@@ -179,7 +179,7 @@ func (a *Agent) SendMetricsBatch() error {
 		return fmt.Errorf("invalid server URL: %w", err)
 	}
 
-	updateURL := baseURL.JoinPath("updates")
+	updateURL := baseURL.JoinPath("updates/")
 
 	metrics := make([]models.Metrics, 0, len(a.Metrics))
 	for _, metric := range a.Metrics {
