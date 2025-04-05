@@ -161,7 +161,7 @@ func (h *ServerHandler) UpdateMetricsWithBatch(w http.ResponseWriter, r *http.Re
 	if err := h.serverUseCase.UpdateMetricsWithBatch(metrics); err != nil {
 		switch {
 		case isBadRequest(err):
-			http.Error(w, "internal server error", http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		default:
 			h.log.Sugar().Errorln("falied to update metrics", zap.Error(err))
