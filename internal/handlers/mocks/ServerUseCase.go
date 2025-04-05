@@ -114,6 +114,24 @@ func (_m *ServerUseCase) UpdateMetric(metricType string, metricName string, metr
 	return r0
 }
 
+// UpdateMetricsWithBatch provides a mock function with given fields: metrics
+func (_m *ServerUseCase) UpdateMetricsWithBatch(metrics []models.Metrics) error {
+	ret := _m.Called(metrics)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateMetricsWithBatch")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func([]models.Metrics) error); ok {
+		r0 = rf(metrics)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // UpdateViaModel provides a mock function with given fields: metric
 func (_m *ServerUseCase) UpdateViaModel(metric models.Metrics) (models.Metrics, error) {
 	ret := _m.Called(metric)

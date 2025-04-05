@@ -103,7 +103,7 @@ func (a *Agent) Start(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				if err := a.SendMetrics(); err != nil {
+				if err := a.SendMetricsBatch(); err != nil {
 					fmt.Printf("Error sending metrics: %v\n", err)
 				}
 			case <-ctx.Done():
@@ -163,6 +163,57 @@ func (a *Agent) SendMetrics() error {
 			return fmt.Errorf("server returned status %d for metric %s", resp.StatusCode, name)
 		}
 	}
+	return nil
+}
+
+func (a *Agent) SendMetricsBatch() error {
+	a.RLock()
+	defer a.RUnlock()
+
+	if len(a.Metrics) == 0 {
+		return nil
+	}
+
+	baseURL, err := url.Parse(a.ServerURL)
+	if err != nil {
+		return fmt.Errorf("invalid server URL: %w", err)
+	}
+
+	updateURL := baseURL.JoinPath("updates/")
+
+	metrics := make([]models.Metrics, 0, len(a.Metrics))
+	for _, metric := range a.Metrics {
+		metrics = append(metrics, metric)
+	}
+
+	body, err := json.Marshal(metrics)
+	if err != nil {
+		return fmt.Errorf("failed to encode metrics: %v", err)
+	}
+
+	compressedBody, err := compressData(body)
+	if err != nil {
+		return fmt.Errorf("failed to compress data: %v", err)
+	}
+
+	req, err := http.NewRequest("POST", updateURL.String(), bytes.NewBuffer(compressedBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Content-Encoding", "gzip")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
 	return nil
 }
 
