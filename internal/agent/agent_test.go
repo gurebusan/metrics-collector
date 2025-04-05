@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zetcan333/metrics-collector/internal/agent"
 	"github.com/zetcan333/metrics-collector/internal/models"
 )
@@ -63,4 +64,46 @@ func TestSendMetrics(t *testing.T) {
 
 	err := a.SendMetrics()
 	assert.NoError(t, err, "Отправка метрик должна выполняться без ошибок")
+}
+
+func TestSendMetricsBatch(t *testing.T) {
+
+	expectedGauge := 123.45
+	expectedCounter := int64(100)
+	expectedMetrics := []models.Metrics{
+		{ID: "TestGauge", MType: models.Gauge, Value: &expectedGauge},
+		{ID: "TestCounter", MType: models.Counter, Delta: &expectedCounter},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		assert.Equal(t, http.MethodPost, r.Method, "Должен быть POST-запрос")
+		assert.Equal(t, "/updates", r.URL.Path, "Неправильный путь")
+
+		assert.Equal(t, "gzip", r.Header.Get("Content-Encoding"), "Должно быть gzip-сжатие")
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"), "Должен быть JSON")
+
+		gzReader, err := gzip.NewReader(r.Body)
+		require.NoError(t, err, "Ошибка распаковки gzip")
+		defer gzReader.Close()
+
+		var receivedMetrics []models.Metrics
+		err = json.NewDecoder(gzReader).Decode(&receivedMetrics)
+		require.NoError(t, err, "Ошибка декодирования JSON")
+
+		require.Len(t, receivedMetrics, 2, "Должно быть 2 метрики")
+		assert.Equal(t, expectedMetrics, receivedMetrics, "Метрики не совпадают")
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	a := agent.NewAgent(server.URL, time.Minute, time.Minute)
+
+	a.Metrics = make(map[string]models.Metrics)
+	a.Metrics["TestGauge"] = expectedMetrics[0]
+	a.Metrics["TestCounter"] = expectedMetrics[1]
+
+	err := a.SendMetricsBatch()
+	assert.NoError(t, err, "Не должно быть ошибки")
 }

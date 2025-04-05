@@ -17,6 +17,7 @@ type ServerRepository interface {
 	GetMetric(ctx context.Context, id string) (models.Metrics, error)
 	GetAllGauges(ctx context.Context) (map[string]float64, error)
 	GetAllCounters(ctx context.Context) (map[string]int64, error)
+	UpdateMetricsWithBatch(ctx context.Context, metrics []models.Metrics) error
 }
 
 type SeverUsecase struct {
@@ -167,4 +168,14 @@ func (s *SeverUsecase) GetAllMetrics() (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+func (s *SeverUsecase) UpdateMetricsWithBatch(metrics []models.Metrics) error {
+	for _, metric := range metrics {
+		if metric.MType != "gauge" && metric.MType != "counter" {
+			return myerrors.ErrInvalidMetricType
+		}
+
+	}
+	return s.repo.UpdateMetricsWithBatch(ctx, metrics)
 }

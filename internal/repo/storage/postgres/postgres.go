@@ -148,6 +148,38 @@ func (p *PgStorage) GetAllCounters(ctx context.Context) (map[string]int64, error
 	return counters, nil
 }
 
+func (p *PgStorage) UpdateMetricsWithBatch(ctx context.Context, metrics []models.Metrics) error {
+	const op = "internal.repo.storage.postgres.UpdateMetricsWithBatch"
+	tx, err := p.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer tx.Rollback(ctx)
+	for _, metric := range metrics {
+		var err error
+		switch metric.MType {
+		case models.Gauge:
+			_, err = tx.Exec(ctx, `
+				INSERT INTO metrics (id, type, value, delta)
+				VALUES ($1, $2, $3, 0)
+				ON CONFLICT (id) DO UPDATE
+				SET value = $3, type = $2
+			`, metric.ID, metric.MType, *metric.Value)
+		case models.Counter:
+			_, err = tx.Exec(ctx, `
+				INSERT INTO metrics (id, type, value, delta)
+				VALUES ($1, $2, 0, $3)
+				ON CONFLICT (id) DO UPDATE
+				SET delta = metrics.delta + $3, type = $2
+			`, metric.ID, metric.MType, *metric.Delta)
+		}
+		if err != nil {
+			return fmt.Errorf("%s: %w", op, err)
+		}
+	}
+	return tx.Commit(ctx)
+}
+
 // mock SaveBkpToFile and LoadBkpFromFile
 func (p *PgStorage) SaveBkpToFile(path string) error {
 	return nil

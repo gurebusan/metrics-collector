@@ -18,6 +18,7 @@ type ServerUseCase interface {
 	UpdateViaModel(metric models.Metrics) (models.Metrics, error)
 	GetViaModel(metric models.Metrics) (models.Metrics, error)
 	GetAllMetrics() (string, error)
+	UpdateMetricsWithBatch(metrics []models.Metrics) error
 }
 
 type ServerHandler struct {
@@ -133,6 +134,32 @@ func (h *ServerHandler) GetAllMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(html))
+}
+
+func (h *ServerHandler) UpdateMetricsWithBatch(w http.ResponseWriter, r *http.Request) {
+	var metrics []models.Metrics
+	if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
+		http.Error(w, "invalid JSON format", http.StatusBadRequest)
+		return
+	}
+
+	if len(metrics) == 0 {
+		http.Error(w, "empty batch", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.serverUseCase.UpdateMetricsWithBatch(metrics); err != nil {
+		switch {
+		case isBadRequest(err):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Batch updated successfully\n"))
 }
 
 func isBadRequest(err error) bool {

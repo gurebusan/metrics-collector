@@ -261,3 +261,55 @@ func TestGetAllMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateMetricsWithBatc(t *testing.T) {
+	tests := []struct {
+		name         string
+		requestBody  []models.Metrics
+		mockSetup    func(*mocks.ServerUseCase)
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name: "Success update metrics with batch",
+			requestBody: []models.Metrics{
+				{
+					ID:    "testGauge",
+					MType: "gauge",
+					Value: func() *float64 { v := 123.45; return &v }(),
+				},
+				{
+					ID:    "testCounter",
+					MType: "counter",
+					Delta: func() *int64 { v := int64(10); return &v }(),
+				},
+			},
+			mockSetup: func(m *mocks.ServerUseCase) {
+				m.On("UpdateMetricsWithBatch", mock.AnythingOfType("[]models.Metrics")).
+					Return(nil)
+			},
+			expectedCode: http.StatusOK,
+			expectedBody: "Batch updated successfully\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockUsecase := &mocks.ServerUseCase{}
+			tt.mockSetup(mockUsecase)
+
+			handler := handlers.NewServerHandler(mockUsecase)
+			r := chi.NewRouter()
+			r.Post("/updates/", handler.UpdateMetricsWithBatch)
+
+			body, _ := json.Marshal(tt.requestBody)
+			req, err := http.NewRequest(http.MethodPost, "/updates/", bytes.NewReader(body))
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+			assert.Equal(t, tt.expectedCode, rr.Code)
+			assert.Equal(t, tt.expectedBody, rr.Body.String())
+			mockUsecase.AssertExpectations(t)
+		})
+	}
+}

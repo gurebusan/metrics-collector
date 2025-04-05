@@ -35,13 +35,18 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", handlers.GetAllMetrics)
+
 		if ping != nil {
 			r.Get("/ping", ping.Ping)
 		}
+
 		r.Route("/update", func(r chi.Router) {
 			r.Post("/{type}/{name}/{value}", handlers.UpdateMetric)
 			r.Post("/", handlers.UpdateViaModel)
 		})
+
+		r.Post("/updates", handlers.UpdateMetricsWithBatch)
+
 		r.Route("/value", func(r chi.Router) {
 			r.Get("/{type}/{name}", handlers.GetMetric)
 			r.Post("/", handlers.GetViaModel)
