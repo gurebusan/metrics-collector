@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgerrcode"
@@ -26,12 +28,21 @@ var (
 func NewStorage(ctx context.Context, dataBaseDSN string) (*PgStorage, error) {
 	const op = "internal.repo.storage.postgres.NewStorage"
 
-	pool, err := retry(ctx, maxAttempts, delays, func() (*pgxpool.Pool, error) {
-		return pgxpool.New(ctx, dataBaseDSN)
+	pool, err := retry(op, ctx, maxAttempts, delays, func() (*pgxpool.Pool, error) {
+		pool, err := pgxpool.New(ctx, dataBaseDSN)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
+
+		if err := pool.Ping(ctx); err != nil {
+			pool.Close() // важно
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
+		return pool, nil
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+		return nil, err
 	}
 
 	query := `
@@ -58,7 +69,7 @@ func (p *PgStorage) Ping(ctx context.Context) error {
 func (p *PgStorage) UpdateMetric(ctx context.Context, metric models.Metrics) error {
 	const op = "internal.repo.storage.postgres.UpdateMetric"
 
-	_, err := retry(ctx, maxAttempts, delays, func() (struct{}, error) {
+	_, err := retry(op, ctx, maxAttempts, delays, func() (struct{}, error) {
 
 		var err error
 
@@ -95,7 +106,7 @@ func (p *PgStorage) GetMetric(ctx context.Context, id string) (models.Metrics, e
 		value      float64
 		delta      int64
 	)
-	return retry(ctx, maxAttempts, delays, func() (models.Metrics, error) {
+	return retry(op, ctx, maxAttempts, delays, func() (models.Metrics, error) {
 		err := p.db.QueryRow(ctx, `SELECT id, type, value, delta FROM metrics WHERE id = $1`, id).
 			Scan(&metric.ID, &metricType, &value, &delta)
 		if err != nil {
@@ -119,7 +130,7 @@ func (p *PgStorage) GetMetric(ctx context.Context, id string) (models.Metrics, e
 func (p *PgStorage) GetAllGauges(ctx context.Context) (map[string]float64, error) {
 	const op = "internal.repo.storage.postgres.GetAllGauges"
 
-	return retry(ctx, maxAttempts, delays, func() (map[string]float64, error) {
+	return retry(op, ctx, maxAttempts, delays, func() (map[string]float64, error) {
 		rows, err := p.db.Query(ctx, `
 		SELECT id, value FROM metrics WHERE type = $1
 	`, models.Gauge)
@@ -148,7 +159,7 @@ func (p *PgStorage) GetAllGauges(ctx context.Context) (map[string]float64, error
 func (p *PgStorage) GetAllCounters(ctx context.Context) (map[string]int64, error) {
 	const op = "internal.repo.storage.postgres.GetAllCounters"
 
-	return retry(ctx, maxAttempts, delays, func() (map[string]int64, error) {
+	return retry(op, ctx, maxAttempts, delays, func() (map[string]int64, error) {
 		rows, err := p.db.Query(ctx, `
 	SELECT id, delta FROM metrics WHERE type = $1
 	`, models.Counter)
@@ -175,7 +186,7 @@ func (p *PgStorage) GetAllCounters(ctx context.Context) (map[string]int64, error
 func (p *PgStorage) UpdateMetricsWithBatch(ctx context.Context, metrics []models.Metrics) error {
 	const op = "internal.repo.storage.postgres.UpdateMetricsWithBatch"
 
-	_, err := retry(ctx, maxAttempts, delays, func() (struct{}, error) {
+	_, err := retry(op, ctx, maxAttempts, delays, func() (struct{}, error) {
 
 		tx, err := p.db.Begin(ctx)
 		if err != nil {
@@ -221,7 +232,7 @@ func (p *PgStorage) LoadBkpFromFile(path string) error {
 	return nil
 }
 
-func retry[T any](ctx context.Context, maxAttempts int, delays []time.Duration, fn func() (T, error)) (T, error) {
+func retry[T any](op string, ctx context.Context, maxAttempts int, delays []time.Duration, fn func() (T, error)) (T, error) {
 	var zero T
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
@@ -233,9 +244,10 @@ func retry[T any](ctx context.Context, maxAttempts int, delays []time.Duration, 
 			return result, nil
 
 		case !isRetriableError(err):
-			return zero, err
+			return zero, fmt.Errorf("not retriable error: %w", err)
 		}
 
+		fmt.Printf("op: %s, retrying to exec, attempt: %d\n", op, attempt+1)
 		select {
 		case <-ctx.Done():
 			return zero, ctx.Err()
@@ -248,9 +260,23 @@ func retry[T any](ctx context.Context, maxAttempts int, delays []time.Duration, 
 func isRetriableError(err error) bool {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		return pgErr.Code == pgerrcode.ConnectionException ||
-			pgErr.Code == pgerrcode.ConnectionDoesNotExist ||
-			pgErr.Code == pgerrcode.ConnectionFailure
+		switch pgErr.Code {
+		case pgerrcode.ConnectionException,
+			pgerrcode.ConnectionDoesNotExist,
+			pgerrcode.ConnectionFailure,
+			pgerrcode.SQLClientUnableToEstablishSQLConnection:
+			return true
+		}
 	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+
+	if strings.Contains(err.Error(), "dial tcp") {
+		return true
+	}
+
 	return false
 }
