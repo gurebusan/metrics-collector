@@ -224,6 +224,12 @@ func (p *PgStorage) UpdateMetricsWithBatch(ctx context.Context, metrics []models
 	return err
 }
 
+func (p *PgStorage) Close() {
+	if p.db != nil {
+		p.db.Close()
+	}
+}
+
 // mock SaveBkpToFile and LoadBkpFromFile
 func (p *PgStorage) SaveBkpToFile(path string) error {
 	return nil

@@ -52,4 +52,9 @@ func main() {
 	server := server.NewServer(log, handlers, pingHandler, serverFlags, bkp)
 
 	server.Start(ctx)
+
+	if s, ok := storage.(*postgres.PgStorage); ok {
+		log.Sugar().Infoln("closing postgres pool")
+		s.Close()
+	}
 }
