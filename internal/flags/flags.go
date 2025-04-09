@@ -12,6 +12,7 @@ type AgentFlags struct {
 	ServerURL      string
 	PollInterval   time.Duration
 	ReportInterval time.Duration
+	Key            string
 }
 
 type ServerFlags struct {
@@ -19,6 +20,7 @@ type ServerFlags struct {
 	StoreInterval   time.Duration
 	FileStoragePath string
 	Restore         bool
+	Key             string
 
 	DataBaseDSN string
 }
@@ -31,6 +33,7 @@ const (
 	defaultFileStoragePath = "/backup/metrcs_db"
 	defaultRestore         = false
 	defaultDataBaseDSN     = ""
+	defaultKey             = ""
 )
 
 func NewAgentFlags() *AgentFlags {
@@ -38,10 +41,12 @@ func NewAgentFlags() *AgentFlags {
 	addr := getEnvOrDefaultString("ADDRESS", defaultAddress)
 	pollSec := getEnvOrDefaultInt("POLL_INTERVAL", defaultPollSec)
 	reportSec := getEnvOrDefaultInt("REPORT_INTERVAL", defaultReportSec)
+	key := getEnvOrDefaultString("KEY", defaultKey)
 
 	pflag.StringVarP(&addr, "a", "a", addr, "Address and port for connection")
 	pflag.IntVarP(&pollSec, "p", "p", pollSec, "Set poll interval")
 	pflag.IntVarP(&reportSec, "r", "r", reportSec, "Set report interval")
+	pflag.StringVarP(&key, "k", "k", key, "Set key")
 	pflag.Parse()
 
 	// Преобразуем флаги в финальные значения
@@ -53,6 +58,7 @@ func NewAgentFlags() *AgentFlags {
 		ServerURL:      serverURL,
 		PollInterval:   pollInterval,
 		ReportInterval: reportInterval,
+		Key:            key,
 	}
 }
 
@@ -64,12 +70,14 @@ func NewServerFlags() *ServerFlags {
 	restore := getEnvOrDefaultBool("RESTORE", defaultRestore)
 
 	dbDSN := getEnvOrDefaultString("DATABASE_DSN", defaultDataBaseDSN)
+	key := getEnvOrDefaultString("KEY", defaultKey)
 
 	pflag.StringVarP(&addr, "a", "a", addr, "Address and port for the server")
 	pflag.IntVarP(&storeSec, "i", "i", storeSec, "Store interval for backup")
 	pflag.StringVarP(&fileStoragePath, "f", "f", fileStoragePath, "File storage path for backup")
 	pflag.BoolVarP(&restore, "r", "r", restore, "Use for load db fron file")
 	pflag.StringVarP(&dbDSN, "d", "d", dbDSN, "Connect postgres via DSN")
+	pflag.StringVarP(&key, "k", "k", key, "Set key")
 	pflag.Parse()
 
 	storeInterval := time.Duration(storeSec) * time.Second
@@ -80,6 +88,7 @@ func NewServerFlags() *ServerFlags {
 		FileStoragePath: fileStoragePath,
 		Restore:         restore,
 		DataBaseDSN:     dbDSN,
+		Key:             key,
 	}
 }
 

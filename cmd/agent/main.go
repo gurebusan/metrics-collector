@@ -19,7 +19,7 @@ func main() {
 	fmt.Println("Report Interval:", a.ReportInterval)
 
 	log.Println("Agent started...")
-	agent := agent.NewAgent(a.ServerURL, a.PollInterval, a.ReportInterval)
+	agent := agent.NewAgent(a.ServerURL, a.PollInterval, a.ReportInterval, a.Key)
 
 	agent.Start(ctx)
 

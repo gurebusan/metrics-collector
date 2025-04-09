@@ -15,7 +15,7 @@ import (
 )
 
 func TestCollectMetrics(t *testing.T) {
-	a := agent.NewAgent("http://localhost:8080", 2*time.Second, 10*time.Second)
+	a := agent.NewAgent("http://localhost:8080", 2*time.Second, 10*time.Second, "test-key")
 	a.CollectMetrics()
 
 	// Проверяем, что метрики заполнены
@@ -56,7 +56,7 @@ func TestSendMetrics(t *testing.T) {
 	}))
 	defer server.Close()
 
-	a := agent.NewAgent(server.URL, 2*time.Millisecond, 10*time.Millisecond)
+	a := agent.NewAgent(server.URL, 2*time.Millisecond, 10*time.Millisecond, "test-key")
 	value := 123.45
 	count := int64(100)
 	a.Metrics["TestGauge"] = models.Metrics{ID: "TestGauge", MType: models.Gauge, Value: &value}
@@ -98,7 +98,7 @@ func TestSendMetricsBatch(t *testing.T) {
 	}))
 	defer server.Close()
 
-	a := agent.NewAgent(server.URL, time.Minute, time.Minute)
+	a := agent.NewAgent(server.URL, time.Minute, time.Minute, "test-key")
 
 	a.Metrics = make(map[string]models.Metrics)
 	a.Metrics["TestGauge"] = expectedMetrics[0]

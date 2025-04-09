@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +38,7 @@ type Agent struct {
 	ReportInterval time.Duration
 	Metrics        map[string]models.Metrics
 	PollCount      int64
+	key            string
 	client         http.Client
 	sync.RWMutex
 }
@@ -72,7 +76,7 @@ type MetricsSnapshot struct {
 }
 
 // Конструктор агента
-func NewAgent(serverURL string, pollInterval, reportInterval time.Duration) *Agent {
+func NewAgent(serverURL string, pollInterval, reportInterval time.Duration, key string) *Agent {
 	return &Agent{
 		ServerURL:      serverURL,
 		PollInterval:   pollInterval,
@@ -81,6 +85,7 @@ func NewAgent(serverURL string, pollInterval, reportInterval time.Duration) *Age
 		client: http.Client{
 			Timeout: 15 * time.Second,
 		},
+		key: key,
 	}
 }
 
@@ -212,6 +217,10 @@ func (a *Agent) SendMetricsBatch() error {
 		return fmt.Errorf("failed to create request: %v", err)
 	}
 
+	if a.key != "" {
+		hash := a.createHash(body)
+		req.Header.Set("HashSHA256", hash)
+	}
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
 
@@ -307,6 +316,12 @@ func compressData(data []byte) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func (a *Agent) createHash(data []byte) string {
+	h := hmac.New(sha256.New, []byte(a.key))
+	h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func retry(maxAttempts int, delays []time.Duration, fn func() error) error {

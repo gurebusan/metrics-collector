@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
+	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/checksign"
 	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/compressor/gziprespose"
 	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/compressor/mygzip"
 	mwLogger "github.com/zetcan333/metrics-collector/internal/handlers/middleware/logger"
@@ -32,6 +33,7 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 	router.Use(mwLogger.New(log))
 	router.Use(mygzip.GzipMiddleware)
 	router.Use(gziprespose.GzipResponseMiddleware)
+	router.Use(checksign.New(flags.Key))
 
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", handlers.GetAllMetrics)
