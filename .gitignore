@@ -26,3 +26,5 @@ vendor/
 
 /metricstest
 /storage
+
+docker-compose.localdb.yml

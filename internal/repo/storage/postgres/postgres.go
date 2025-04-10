@@ -72,7 +72,6 @@ func (p *PgStorage) UpdateMetric(ctx context.Context, metric models.Metrics) err
 		var err error
 
 		switch metric.MType {
-
 		case models.Gauge:
 			_, err = p.db.Exec(ctx, `
 			INSERT INTO metrics (id, type, value, delta) 

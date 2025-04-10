@@ -35,17 +35,20 @@ func main() {
 	if serverFlags.DataBaseDSN != "" {
 		storage, err = postgres.NewStorage(ctx, serverFlags.DataBaseDSN)
 		if err != nil {
-			fallInMememory(log)
-		}
-		if err = storage.InitTable(ctx); err != nil {
-			fallInMememory(log)
+			log.Sugar().Errorln("Postgres init error:", err)
+			fallInMemory(log)
 		} else {
-			log.Sugar().Infoln("postgres storage initialized")
-			pingHandler = ping.New(storage)
+			if err = storage.InitTable(ctx); err != nil {
+				log.Sugar().Errorln("Postgres table init error:", err)
+				fallInMemory(log)
+			} else {
+				log.Sugar().Infoln("Postgres storage initialized")
+				pingHandler = ping.New(storage)
+			}
 		}
 	} else {
 		storage = mem.NewStorage()
-		log.Sugar().Infoln("in-memory storage initialized")
+		log.Sugar().Infoln("In-memory storage initialized")
 		bkp = backup.NewBackupUsecase(storage)
 	}
 
@@ -61,7 +64,7 @@ func main() {
 	}
 }
 
-func fallInMememory(log *zap.Logger) {
+func fallInMemory(log *zap.Logger) {
 	log.Sugar().Infoln("falling back to in-memory storage")
 	storage = mem.NewStorage()
 	bkp = backup.NewBackupUsecase(storage)
