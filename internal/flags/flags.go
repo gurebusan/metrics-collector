@@ -38,57 +38,39 @@ const (
 
 func NewAgentFlags() *AgentFlags {
 
-	addr := getEnvOrDefaultString("ADDRESS", defaultAddress)
-	pollSec := getEnvOrDefaultInt("POLL_INTERVAL", defaultPollSec)
-	reportSec := getEnvOrDefaultInt("REPORT_INTERVAL", defaultReportSec)
-	key := getEnvOrDefaultString("KEY", defaultKey)
+	addrPtr := pflag.StringP("a", "a", getEnvOrDefaultString("ADDRESS", defaultAddress), "Address and port for connection")
+	pollSecPtr := pflag.IntP("p", "p", getEnvOrDefaultInt("POLL_INTERVAL", defaultPollSec), "Set poll interval")
+	reportSecPtr := pflag.IntP("r", "r", getEnvOrDefaultInt("REPORT_INTERVAL", defaultReportSec), "Set report interval")
+	keyPtr := pflag.StringP("k", "k", getEnvOrDefaultString("KEY", defaultKey), "Set key")
 
-	pflag.StringVarP(&addr, "a", "a", addr, "Address and port for connection")
-	pflag.IntVarP(&pollSec, "p", "p", pollSec, "Set poll interval")
-	pflag.IntVarP(&reportSec, "r", "r", reportSec, "Set report interval")
-	pflag.StringVarP(&key, "k", "k", key, "Set key")
 	pflag.Parse()
 
-	// Преобразуем флаги в финальные значения
-	serverURL := "http://" + addr
-	pollInterval := time.Duration(pollSec) * time.Second
-	reportInterval := time.Duration(reportSec) * time.Second
-
 	return &AgentFlags{
-		ServerURL:      serverURL,
-		PollInterval:   pollInterval,
-		ReportInterval: reportInterval,
-		Key:            key,
+		ServerURL:      "http://" + *addrPtr,
+		PollInterval:   time.Duration(*pollSecPtr) * time.Second,
+		ReportInterval: time.Duration(*reportSecPtr) * time.Second,
+		Key:            *keyPtr,
 	}
 }
 
 func NewServerFlags() *ServerFlags {
 	// Значение по умолчанию
-	addr := getEnvOrDefaultString("ADDRESS", defaultAddress)
-	storeSec := getEnvOrDefaultInt("STORE_INTERVAL", defaultStoreSec)
-	fileStoragePath := getEnvOrDefaultString("FILE_STORAGE_PATH", defaultFileStoragePath)
-	restore := getEnvOrDefaultBool("RESTORE", defaultRestore)
+	addrPtr := pflag.StringP("a", "a", getEnvOrDefaultString("ADDRESS", defaultAddress), "Address and port for the server")
+	storeSecPtr := pflag.IntP("i", "i", getEnvOrDefaultInt("STORE_INTERVAL", defaultStoreSec), "Store interval for backup")
+	filePathPtr := pflag.StringP("f", "f", getEnvOrDefaultString("FILE_STORAGE_PATH", defaultFileStoragePath), "File storage path for backup")
+	restorePtr := pflag.BoolP("r", "r", getEnvOrDefaultBool("RESTORE", defaultRestore), "Use for load db from file")
+	dbDSNPtr := pflag.StringP("d", "d", getEnvOrDefaultString("DATABASE_DSN", defaultDataBaseDSN), "Connect postgres via DSN")
+	keyPtr := pflag.StringP("k", "k", getEnvOrDefaultString("KEY", defaultKey), "Set key")
 
-	dbDSN := getEnvOrDefaultString("DATABASE_DSN", defaultDataBaseDSN)
-	key := getEnvOrDefaultString("KEY", defaultKey)
-
-	pflag.StringVarP(&addr, "a", "a", addr, "Address and port for the server")
-	pflag.IntVarP(&storeSec, "i", "i", storeSec, "Store interval for backup")
-	pflag.StringVarP(&fileStoragePath, "f", "f", fileStoragePath, "File storage path for backup")
-	pflag.BoolVarP(&restore, "r", "r", restore, "Use for load db fron file")
-	pflag.StringVarP(&dbDSN, "d", "d", dbDSN, "Connect postgres via DSN")
-	pflag.StringVarP(&key, "k", "k", key, "Set key")
 	pflag.Parse()
 
-	storeInterval := time.Duration(storeSec) * time.Second
-
 	return &ServerFlags{
-		Address:         addr,
-		StoreInterval:   storeInterval,
-		FileStoragePath: fileStoragePath,
-		Restore:         restore,
-		DataBaseDSN:     dbDSN,
-		Key:             key,
+		Address:         *addrPtr,
+		StoreInterval:   time.Duration(*storeSecPtr) * time.Second,
+		FileStoragePath: *filePathPtr,
+		Restore:         *restorePtr,
+		DataBaseDSN:     *dbDSNPtr,
+		Key:             *keyPtr,
 	}
 }
 

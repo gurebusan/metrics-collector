@@ -16,7 +16,7 @@ func New(key string) func(http.Handler) http.Handler {
 
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			if key == "" {
-				next.ServeHTTP(w, r) // 1!
+				next.ServeHTTP(w, r)
 				return
 			}
 
@@ -43,7 +43,7 @@ func New(key string) func(http.Handler) http.Handler {
 
 			next.ServeHTTP(w, r)
 		}
-		return http.HandlerFunc(fn) // 2!
+		return http.HandlerFunc(fn)
 	}
 }
 
