@@ -171,3 +171,8 @@ func (s *MemStorage) LoadBkpFromFile(path string) error {
 func (s *MemStorage) Ping(ctx context.Context) error {
 	return nil
 }
+
+// mock InitTable
+func (s *MemStorage) InitTable(ctx context.Context) error {
+	return nil
+}
