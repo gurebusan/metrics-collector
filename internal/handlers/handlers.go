@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"github.com/zetcan333/metrics-collector/internal/models"
 	"github.com/zetcan333/metrics-collector/pkg/myerrors"
 	"go.uber.org/zap"
@@ -83,7 +84,7 @@ func (h *ServerHandler) GetMetric(w http.ResponseWriter, r *http.Request) {
 func (h *ServerHandler) UpdateViaModel(w http.ResponseWriter, r *http.Request) {
 	var metric models.Metrics
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
-		http.Error(w, "invalid JSON format", http.StatusBadRequest)
+		jsonResponse(w, r, http.StatusBadRequest, Error("invalid JSON format"))
 		return
 	}
 
@@ -91,18 +92,16 @@ func (h *ServerHandler) UpdateViaModel(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case isBadRequest(err):
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			jsonResponse(w, r, http.StatusBadRequest, Error(err.Error()))
 			return
 		default:
 			h.log.Sugar().Errorln("falied to update metric", err)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
+			jsonResponse(w, r, http.StatusInternalServerError, "internal server error")
 			return
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(updatedMetric)
+	jsonResponse(w, r, http.StatusOK, updatedMetric)
 }
 
 func (h *ServerHandler) GetViaModel(w http.ResponseWriter, r *http.Request) {
@@ -116,21 +115,19 @@ func (h *ServerHandler) GetViaModel(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, myerrors.ErrMetricNotFound):
-			http.Error(w, err.Error(), http.StatusNotFound)
+			jsonResponse(w, r, http.StatusNotFound, Error(err.Error()))
 			return
 		case errors.Is(err, myerrors.ErrInvalidMetricType):
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			jsonResponse(w, r, http.StatusBadRequest, Error(err.Error()))
 			return
 		default:
 			h.log.Sugar().Errorln("falied to get metric", err)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
+			jsonResponse(w, r, http.StatusInternalServerError, Error("internal server error"))
 			return
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(result)
+	jsonResponse(w, r, http.StatusOK, result)
 }
 
 // GetAllMetricsHandler возвращает все метрики в формате HTML
@@ -148,33 +145,44 @@ func (h *ServerHandler) GetAllMetrics(w http.ResponseWriter, r *http.Request) {
 
 func (h *ServerHandler) UpdateMetricsWithBatch(w http.ResponseWriter, r *http.Request) {
 	var metrics []models.Metrics
-	if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
-		http.Error(w, "invalid JSON format", http.StatusBadRequest)
+	if err := render.DecodeJSON(r.Body, &metrics); err != nil {
+		jsonResponse(w, r, http.StatusBadRequest, Error("invalid JSON format"))
 		return
 	}
 
 	if len(metrics) == 0 {
-		http.Error(w, "empty batch", http.StatusBadRequest)
+		jsonResponse(w, r, http.StatusBadRequest, Error("empty batch"))
 		return
 	}
 
 	if err := h.serverUseCase.UpdateMetricsWithBatch(metrics); err != nil {
-		switch {
-		case isBadRequest(err):
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		default:
-			h.log.Sugar().Errorln("falied to update metrics", zap.Error(err))
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
+		if isBadRequest(err) {
+			jsonResponse(w, r, http.StatusBadRequest, Error(err.Error()))
+		} else {
+			h.log.Error("failed to update metrics", zap.Error(err))
+			jsonResponse(w, r, http.StatusInternalServerError, Error("internal server error"))
 		}
+		return
 	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Batch updated successfully\n"))
+
+	jsonResponse(w, r, http.StatusOK, map[string]string{"status": "batch updated successfully"})
 }
 
 func isBadRequest(err error) bool {
 	return errors.Is(err, myerrors.ErrInvalidMetricType) ||
 		errors.Is(err, myerrors.ErrInvalidGaugeValue) ||
 		errors.Is(err, myerrors.ErrInvalidCounterValue)
+}
+
+func jsonResponse(w http.ResponseWriter, r *http.Request, StatusCode int, v any) {
+	w.WriteHeader(StatusCode)
+	render.JSON(w, r, v)
+}
+
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+func Error(msg string) errorResponse {
+	return errorResponse{Error: msg}
 }

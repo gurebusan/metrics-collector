@@ -197,6 +197,19 @@ func TestGetViaModel(t *testing.T) {
 			expectedCode: http.StatusOK,
 			expectedBody: `{"id":"testGauge","type":"gauge","value":123.45}`,
 		},
+		{
+			name: "Metric not found",
+			requestBody: models.Metrics{
+				ID:    "notfound",
+				MType: "gauge",
+			},
+			mockSetup: func(m *mocks.ServerUseCase) {
+				m.On("GetViaModel", mock.AnythingOfType("models.Metrics")).
+					Return(models.Metrics{}, myerrors.ErrMetricNotFound)
+			},
+			expectedCode: http.StatusNotFound,
+			expectedBody: `{"error":"metric not found"}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -263,7 +276,7 @@ func TestGetAllMetrics(t *testing.T) {
 	}
 }
 
-func TestUpdateMetricsWithBatc(t *testing.T) {
+func TestUpdateMetricsWithBatch(t *testing.T) {
 	tests := []struct {
 		name         string
 		requestBody  []models.Metrics
@@ -290,9 +303,19 @@ func TestUpdateMetricsWithBatc(t *testing.T) {
 					Return(nil)
 			},
 			expectedCode: http.StatusOK,
-			expectedBody: "Batch updated successfully\n",
+			expectedBody: `{"status":"batch updated successfully"}`,
+		},
+		{
+			name:        "Empty batch",
+			requestBody: []models.Metrics{},
+			mockSetup: func(m *mocks.ServerUseCase) {
+				// No expectations as validation fails before usecase is called
+			},
+			expectedCode: http.StatusBadRequest,
+			expectedBody: `{"error":"empty batch"}`,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockUsecase := &mocks.ServerUseCase{}
@@ -308,8 +331,11 @@ func TestUpdateMetricsWithBatc(t *testing.T) {
 
 			rr := httptest.NewRecorder()
 			r.ServeHTTP(rr, req)
+
 			assert.Equal(t, tt.expectedCode, rr.Code)
-			assert.Equal(t, tt.expectedBody, rr.Body.String())
+			if tt.expectedBody != "" {
+				assert.JSONEq(t, tt.expectedBody, rr.Body.String())
+			}
 			mockUsecase.AssertExpectations(t)
 		})
 	}
