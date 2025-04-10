@@ -175,6 +175,7 @@ func isBadRequest(err error) bool {
 }
 
 func jsonResponse(w http.ResponseWriter, r *http.Request, StatusCode int, v any) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(StatusCode)
 	render.JSON(w, r, v)
 }
