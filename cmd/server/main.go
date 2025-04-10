@@ -37,7 +37,7 @@ func main() {
 		if err != nil {
 			fallInMememory(log)
 		}
-		if err := storage.InitTable(ctx); err != nil {
+		if err = storage.InitTable(ctx); err != nil {
 			fallInMememory(log)
 		} else {
 			log.Sugar().Infoln("postgres storage initialized")
