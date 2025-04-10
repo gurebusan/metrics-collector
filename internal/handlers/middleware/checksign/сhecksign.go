@@ -7,8 +7,6 @@ import (
 	"encoding/hex"
 	"io"
 	"net/http"
-
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 const hashHeader = "HashSHA256"
@@ -18,7 +16,7 @@ func New(key string) func(http.Handler) http.Handler {
 
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			if key == "" {
-				next.ServeHTTP(w, r)
+				next.ServeHTTP(w, r) // 1!
 				return
 			}
 
@@ -42,11 +40,10 @@ func New(key string) func(http.Handler) http.Handler {
 				http.Error(w, "Invalid HashSHA256", http.StatusBadRequest)
 				return
 			}
-			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
-			next.ServeHTTP(ww, r)
+			next.ServeHTTP(w, r)
 		}
-		return http.HandlerFunc(fn)
+		return http.HandlerFunc(fn) // 2!
 	}
 }
 
