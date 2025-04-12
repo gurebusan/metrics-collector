@@ -19,6 +19,8 @@ type ServerFlags struct {
 	StoreInterval   time.Duration
 	FileStoragePath string
 	Restore         bool
+
+	DataBaseDSN string
 }
 
 const (
@@ -28,6 +30,7 @@ const (
 	defaultStoreSec        = 300
 	defaultFileStoragePath = "/backup/metrcs_db"
 	defaultRestore         = false
+	defaultDataBaseDSN     = ""
 )
 
 func NewAgentFlags() *AgentFlags {
@@ -60,10 +63,13 @@ func NewServerFlags() *ServerFlags {
 	fileStoragePath := getEnvOrDefaultString("FILE_STORAGE_PATH", defaultFileStoragePath)
 	restore := getEnvOrDefaultBool("RESTORE", defaultRestore)
 
+	dbDSN := getEnvOrDefaultString("DATABASE_DSN", defaultDataBaseDSN)
+
 	pflag.StringVarP(&addr, "a", "a", addr, "Address and port for the server")
 	pflag.IntVarP(&storeSec, "i", "i", storeSec, "Store interval for backup")
 	pflag.StringVarP(&fileStoragePath, "f", "f", fileStoragePath, "File storage path for backup")
 	pflag.BoolVarP(&restore, "r", "r", restore, "Use for load db fron file")
+	pflag.StringVarP(&dbDSN, "d", "d", dbDSN, "Connect postgres via DSN")
 	pflag.Parse()
 
 	storeInterval := time.Duration(storeSec) * time.Second
@@ -73,6 +79,7 @@ func NewServerFlags() *ServerFlags {
 		StoreInterval:   storeInterval,
 		FileStoragePath: fileStoragePath,
 		Restore:         restore,
+		DataBaseDSN:     dbDSN,
 	}
 }
 
