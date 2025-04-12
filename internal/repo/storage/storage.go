@@ -15,4 +15,5 @@ type Storage interface {
 	SaveBkpToFile(path string) error
 	LoadBkpFromFile(path string) error
 	Ping(ctx context.Context) error
+	InitTable(ctx context.Context) error
 }

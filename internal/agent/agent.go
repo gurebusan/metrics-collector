@@ -5,19 +5,27 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/zetcan333/metrics-collector/internal/models"
+)
+
+var (
+	delays      = []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
+	maxAttempts = 3
 )
 
 // Структура агента
@@ -105,6 +113,8 @@ func (a *Agent) Start(ctx context.Context) {
 			case <-ticker.C:
 				if err := a.SendMetricsBatch(); err != nil {
 					fmt.Printf("Error sending metrics: %v\n", err)
+				} else {
+					fmt.Println("Metrics sent successfully")
 				}
 			case <-ctx.Done():
 				fmt.Println("Metrics reporting stopped")
@@ -121,7 +131,7 @@ func (a *Agent) Start(ctx context.Context) {
 
 }
 
-// Отправляем метрики на сервер
+// DEPRICATED
 func (a *Agent) SendMetrics() error {
 	a.RLock()
 	defer a.RUnlock()
@@ -166,6 +176,7 @@ func (a *Agent) SendMetrics() error {
 	return nil
 }
 
+// ACTUAL FOR CURRENT API
 func (a *Agent) SendMetricsBatch() error {
 	a.RLock()
 	defer a.RUnlock()
@@ -204,17 +215,20 @@ func (a *Agent) SendMetricsBatch() error {
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %v", err)
-	}
-	defer resp.Body.Close()
+	return retry(maxAttempts, delays, func() error {
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned status %d", resp.StatusCode)
-	}
+		resp, err := a.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to send request: %v", err)
+		}
+		resp.Body.Close()
 
-	return nil
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("server returned status %d", resp.StatusCode)
+		}
+
+		return nil
+	})
 }
 
 // Сбор метрик из runtime
@@ -293,4 +307,35 @@ func compressData(data []byte) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func retry(maxAttempts int, delays []time.Duration, fn func() error) error {
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		err := fn()
+
+		switch {
+		case err == nil:
+			return nil
+		case !isRetriableError(err):
+			return err
+		}
+		fmt.Printf("retrying to send, attempt: %d\n", attempt+1)
+		<-time.After(delays[attempt])
+	}
+	return fmt.Errorf("max attempts reached")
+}
+
+func isRetriableError(err error) bool {
+	var netErr net.Error
+
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+
+	if strings.Contains(err.Error(), "dial tcp") {
+		return true
+	}
+
+	return false
 }

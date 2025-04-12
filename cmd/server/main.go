@@ -6,13 +6,19 @@ import (
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
 	"github.com/zetcan333/metrics-collector/internal/handlers/ping"
-	"github.com/zetcan333/metrics-collector/internal/repo/storage"
+	strg "github.com/zetcan333/metrics-collector/internal/repo/storage"
 	"github.com/zetcan333/metrics-collector/internal/repo/storage/mem"
 	"github.com/zetcan333/metrics-collector/internal/repo/storage/postgres"
 	"github.com/zetcan333/metrics-collector/internal/server"
 	"github.com/zetcan333/metrics-collector/internal/usecase"
 	"github.com/zetcan333/metrics-collector/internal/usecase/backup"
 	"go.uber.org/zap"
+)
+
+var (
+	storage     strg.Storage
+	pingHandler *ping.PingHandler
+	bkp         *backup.BackupUsecase
 )
 
 func main() {
@@ -26,24 +32,23 @@ func main() {
 	serverFlags := flags.NewServerFlags()
 	ctx := context.WithoutCancel(context.Background())
 
-	var (
-		storage     storage.Storage
-		pingHandler *ping.PingHandler
-		bkp         *backup.BackupUsecase
-	)
 	if serverFlags.DataBaseDSN != "" {
 		storage, err = postgres.NewStorage(ctx, serverFlags.DataBaseDSN)
 		if err != nil {
-			log.Sugar().Errorln("cannot initialize postgres, falling back to in-memory storage:", zap.Error(err))
-			storage = mem.NewStorage()
-			bkp = backup.NewBackupUsecase(storage)
+			log.Sugar().Errorln("Postgres init error:", err)
+			fallInMemory(log)
 		} else {
-			log.Sugar().Infoln("postgres initialized")
-			pingHandler = ping.New(storage)
+			if err = storage.InitTable(ctx); err != nil {
+				log.Sugar().Errorln("Postgres table init error:", err)
+				fallInMemory(log)
+			} else {
+				log.Sugar().Infoln("Postgres storage initialized")
+				pingHandler = ping.New(storage)
+			}
 		}
 	} else {
 		storage = mem.NewStorage()
-		log.Sugar().Infoln("in-memory storage initialized")
+		log.Sugar().Infoln("In-memory storage initialized")
 		bkp = backup.NewBackupUsecase(storage)
 	}
 
@@ -52,4 +57,15 @@ func main() {
 	server := server.NewServer(log, handlers, pingHandler, serverFlags, bkp)
 
 	server.Start(ctx)
+
+	if s, ok := storage.(*postgres.PgStorage); ok {
+		log.Sugar().Infoln("closing postgres pool")
+		s.Close()
+	}
+}
+
+func fallInMemory(log *zap.Logger) {
+	log.Sugar().Infoln("falling back to in-memory storage")
+	storage = mem.NewStorage()
+	bkp = backup.NewBackupUsecase(storage)
 }
