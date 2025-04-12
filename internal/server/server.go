@@ -35,7 +35,9 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", handlers.GetAllMetrics)
-		r.Get("/ping", ping.Ping)
+		if ping != nil {
+			r.Get("/ping", ping.Ping)
+		}
 		r.Route("/update", func(r chi.Router) {
 			r.Post("/{type}/{name}/{value}", handlers.UpdateMetric)
 			r.Post("/", handlers.UpdateViaModel)
@@ -50,13 +52,17 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 }
 
 func (s *Server) Start(ctx context.Context) {
-	if s.flags.Restore {
-		if err := s.backup.LoadBackup(s.flags.FileStoragePath); err != nil {
-			s.log.Sugar().Errorln("failed to load backup", zap.Error(err))
-		} else {
-			s.log.Sugar().Infoln("backup loaded")
+
+	if s.backup != nil {
+		if s.flags.Restore {
+			if err := s.backup.LoadBackup(s.flags.FileStoragePath); err != nil {
+				s.log.Sugar().Errorln("failed to load backup", zap.Error(err))
+			} else {
+				s.log.Sugar().Infoln("backup loaded")
+			}
 		}
 	}
+
 	server := &http.Server{
 		Addr:    s.flags.Address,
 		Handler: s.router,
@@ -72,23 +78,27 @@ func (s *Server) Start(ctx context.Context) {
 		}
 	}()
 
-	ticker := time.NewTicker(s.flags.StoreInterval)
-	defer ticker.Stop()
+	if s.backup != nil {
+		ticker := time.NewTicker(s.flags.StoreInterval)
+		defer ticker.Stop()
 
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				if err := s.backup.SaveBackup(s.flags.FileStoragePath); err != nil {
-					s.log.Sugar().Errorln("Failed to save backup", zap.Error(err))
+		go func() {
+			for {
+				select {
+				case <-ticker.C:
+					if err := s.backup.SaveBackup(s.flags.FileStoragePath); err != nil {
+						s.log.Sugar().Errorln("Failed to save backup", zap.Error(err))
+
+					} else {
+						s.log.Sugar().Infoln("Backup saved")
+					}
+
+				case <-ctx.Done():
 					return
 				}
-				s.log.Sugar().Infoln("Backup saved")
-			case <-ctx.Done():
-				return
 			}
-		}
-	}()
+		}()
+	}
 
 	select {
 	case <-ctx.Done():
@@ -97,11 +107,13 @@ func (s *Server) Start(ctx context.Context) {
 
 	s.log.Sugar().Infoln("Shutting down server...")
 
-	if err := s.backup.SaveBackup(s.flags.FileStoragePath); err != nil {
-		s.log.Sugar().Errorln("Failed to save final backup", zap.Error(err))
+	if s.backup != nil {
+		if err := s.backup.SaveBackup(s.flags.FileStoragePath); err != nil {
+			s.log.Sugar().Errorln("Failed to save final backup", zap.Error(err))
+		} else {
+			s.log.Sugar().Infoln("Final backup saved")
+		}
 	}
-	s.log.Sugar().Infoln("Backup saved")
-
 	if err := server.Shutdown(context.Background()); err != nil {
 		s.log.Sugar().Errorln("Failed to shutdown server", zap.Error(err))
 	}
