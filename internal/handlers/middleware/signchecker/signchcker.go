@@ -12,13 +12,6 @@ import (
 func New(key string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			recievedHash := r.Header.Get("HashSHA256")
-			if recievedHash == "" {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(`{"error":"HashSHA256 header is required"}`))
-				return
-			}
 
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
@@ -30,11 +23,19 @@ func New(key string) func(next http.Handler) http.Handler {
 			r.Body = io.NopCloser(bytes.NewBuffer(body))
 			r.Body.Close()
 
+			recievedHash := r.Header.Get("HashSHA256")
+			if recievedHash == "" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write(body)
+				return
+			}
+
 			expectedHash := createHash(body, key)
 			if recievedHash != expectedHash {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(`{"error":"Invalid hash"}`))
+				w.Write(body)
 				return
 			}
 			next.ServeHTTP(w, r)
