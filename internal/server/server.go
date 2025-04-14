@@ -81,6 +81,7 @@ func (s *Server) Start(ctx context.Context) {
 
 	go func() {
 		s.log.Sugar().Infoln("Starting server...")
+		s.log.Sugar().Infoln("Server key", s.flags.Key)
 		err := server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			s.log.Sugar().Fatalln("failed to start server", zap.Error(err))
