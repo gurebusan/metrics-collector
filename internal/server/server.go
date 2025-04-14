@@ -14,6 +14,7 @@ import (
 	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/compressor/gziprespose"
 	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/compressor/mygzip"
 	mwLogger "github.com/zetcan333/metrics-collector/internal/handlers/middleware/logger"
+	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/signchecker"
 	"github.com/zetcan333/metrics-collector/internal/handlers/ping"
 	"github.com/zetcan333/metrics-collector/internal/usecase/backup"
 	"go.uber.org/zap"
@@ -32,6 +33,9 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 	router.Use(mwLogger.New(log))
 	router.Use(mygzip.GzipMiddleware)
 	router.Use(gziprespose.GzipResponseMiddleware)
+	if flags.Key != "" {
+		router.Use(signchecker.New(flags.Key))
+	}
 
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", handlers.GetAllMetrics)

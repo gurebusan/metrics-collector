@@ -13,13 +13,14 @@ func main() {
 
 	ctx := context.Background()
 
-	a := flags.NewAgentFlags()
-	fmt.Println("Server URL:", a.ServerURL)
-	fmt.Println("Poll Interval:", a.PollInterval)
-	fmt.Println("Report Interval:", a.ReportInterval)
-
+	agentFlags := flags.NewAgentFlags()
+	fmt.Println("Server URL:", agentFlags.ServerURL)
+	fmt.Println("Poll Interval:", agentFlags.PollInterval)
+	fmt.Println("Report Interval:", agentFlags.ReportInterval)
+	//log.Println("Key", a.Key)
 	log.Println("Agent started...")
-	agent := agent.NewAgent(a.ServerURL, a.PollInterval, a.ReportInterval)
+
+	agent := agent.NewAgent(agentFlags)
 
 	agent.Start(ctx)
 
