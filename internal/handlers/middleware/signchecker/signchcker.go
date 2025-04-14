@@ -14,7 +14,7 @@ func New(key string) func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			recievedHash := r.Header.Get("HashSHA256")
 			if recievedHash == "" {
-				http.Error(w, "HashSHA256 header is missing", http.StatusBadRequest)
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 
@@ -28,7 +28,7 @@ func New(key string) func(next http.Handler) http.Handler {
 
 			expectedHash := createHash(body, key)
 			if recievedHash != expectedHash {
-				http.Error(w, "HashSHA256 header is invalid", http.StatusBadRequest)
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 			next.ServeHTTP(w, r)
