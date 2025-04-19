@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -15,6 +16,7 @@ func New(key string) func(next http.Handler) http.Handler {
 			recievedHash := r.Header.Get("HashSHA256")
 			if recievedHash != "" {
 				body, err := io.ReadAll(r.Body)
+				fmt.Println(string(body))
 				if err != nil {
 					w.WriteHeader(http.StatusBadRequest)
 					w.Write([]byte(`{"error":"Failed to read request body"}`))
