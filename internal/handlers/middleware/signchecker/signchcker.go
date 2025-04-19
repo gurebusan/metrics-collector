@@ -21,34 +21,17 @@ func New(key string) func(next http.Handler) http.Handler {
 				return
 			}
 			r.Body = io.NopCloser(bytes.NewBuffer(body))
-			r.Body.Close()
 
 			recievedHash := r.Header.Get("HashSHA256")
-			if recievedHash == "" {
-				// w.Header().Set("Content-Type", "application/json")
-				// w.WriteHeader(http.StatusBadRequest)
-				// w.Write(body)
-				// return
-				rec := &responseRecorder{
-					ResponseWriter: w,
-					body:           new(bytes.Buffer),
+			if recievedHash != "" {
+				expectedHash := createHash(body, key)
+				if recievedHash != expectedHash {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusBadRequest)
+					w.Write(body)
+					return
 				}
-				next.ServeHTTP(rec, r)
-
-				signature := createHash(rec.body.Bytes(), key)
-				w.Header().Set("HashSHA256", signature)
-				w.Write(rec.body.Bytes())
 			}
-
-			expectedHash := createHash(body, key)
-			if recievedHash != expectedHash {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write(body)
-				return
-			}
-			// next.ServeHTTP(w, r)
-			// w.Header().Set("HashSHA256", expectedHash)
 			rec := &responseRecorder{
 				ResponseWriter: w,
 				body:           new(bytes.Buffer),
