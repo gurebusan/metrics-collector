@@ -11,11 +11,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zetcan333/metrics-collector/internal/agent"
+	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/models"
 )
 
 func TestCollectMetrics(t *testing.T) {
-	a := agent.NewAgent("http://localhost:8080", 2*time.Second, 10*time.Second)
+	agentFlags := &flags.AgentFlags{
+		ServerURL:      "http://localhost:8080",
+		PollInterval:   2 * time.Second,
+		ReportInterval: 10 * time.Second,
+		Key:            "test-key",
+	}
+	a := agent.NewAgent(agentFlags)
 	a.CollectMetrics()
 
 	// Проверяем, что метрики заполнены
@@ -55,8 +62,13 @@ func TestSendMetrics(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
-
-	a := agent.NewAgent(server.URL, 2*time.Millisecond, 10*time.Millisecond)
+	agentFlags := &flags.AgentFlags{
+		ServerURL:      server.URL,
+		PollInterval:   2 * time.Millisecond,
+		ReportInterval: 10 * time.Millisecond,
+		Key:            "test-key",
+	}
+	a := agent.NewAgent(agentFlags)
 	value := 123.45
 	count := int64(100)
 	a.Metrics["TestGauge"] = models.Metrics{ID: "TestGauge", MType: models.Gauge, Value: &value}
@@ -97,8 +109,13 @@ func TestSendMetricsBatch(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
-
-	a := agent.NewAgent(server.URL, time.Minute, time.Minute)
+	agentFlags := &flags.AgentFlags{
+		ServerURL:      server.URL,
+		PollInterval:   1 * time.Minute,
+		ReportInterval: 1 * time.Minute,
+		Key:            "test-key",
+	}
+	a := agent.NewAgent(agentFlags)
 
 	a.Metrics = make(map[string]models.Metrics)
 	a.Metrics["TestGauge"] = expectedMetrics[0]

@@ -14,6 +14,7 @@ func New(log *zap.Logger) func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			entry := log.With(
 				zap.String("method", r.Method),
+				zap.String("Header HashSHA256", r.Header.Get("HashSHA256")),
 				zap.String("url", r.URL.Path),
 				zap.String("remote_addr", r.RemoteAddr),
 				zap.String("user_agent", r.UserAgent()),
