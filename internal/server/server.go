@@ -34,7 +34,7 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 	router.Use(mygzip.GzipMiddleware)
 	router.Use(gziprespose.GzipResponseMiddleware)
 	if flags.Key != "" {
-		router.Use(signchecker.New(flags.Key))
+		router.Use(signchecker.New(flags.Key, log))
 	}
 
 	router.Route("/", func(r chi.Router) {
