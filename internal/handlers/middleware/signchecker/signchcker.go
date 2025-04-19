@@ -24,12 +24,12 @@ func New(key string) func(next http.Handler) http.Handler {
 			r.Body.Close()
 
 			recievedHash := r.Header.Get("HashSHA256")
-			if recievedHash == "" {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write(body)
-				return
-			}
+			// if recievedHash == "" {
+			// 	w.Header().Set("Content-Type", "application/json")
+			// 	w.WriteHeader(http.StatusBadRequest)
+			// 	w.Write(body)
+			// 	return
+			// }
 
 			expectedHash := createHash(body, key)
 			if recievedHash != expectedHash {
@@ -39,6 +39,7 @@ func New(key string) func(next http.Handler) http.Handler {
 				return
 			}
 			next.ServeHTTP(w, r)
+			w.Header().Set("HashSHA256", expectedHash)
 		}
 		return http.HandlerFunc(fn)
 	}
