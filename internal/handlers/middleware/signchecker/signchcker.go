@@ -12,26 +12,24 @@ import (
 func New(key string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(`{"error":"Failed to read request body"}`))
-				return
-			}
-			r.Body = io.NopCloser(bytes.NewBuffer(body))
-
 			recievedHash := r.Header.Get("HashSHA256")
 			if recievedHash != "" {
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					w.Write([]byte(`{"error":"Failed to read request body"}`))
+					return
+				}
+				r.Body = io.NopCloser(bytes.NewBuffer(body))
+
 				expectedHash := createHash(body, key)
 				if recievedHash != expectedHash {
-					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusBadRequest)
 					w.Write(body)
 					return
 				}
 			}
+
 			rec := &responseRecorder{
 				ResponseWriter: w,
 				body:           new(bytes.Buffer),
