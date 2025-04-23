@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
@@ -29,7 +30,7 @@ type Server struct {
 
 func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.PingHandler, flags *flags.ServerFlags, backup *backup.BackupUsecase) *Server {
 	router := chi.NewRouter()
-
+	router.Use(middleware.RequestID)
 	router.Use(mwLogger.New(log))
 	router.Use(mygzip.GzipMiddleware)
 	router.Use(gziprespose.GzipResponseMiddleware)

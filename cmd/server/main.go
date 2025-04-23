@@ -22,8 +22,9 @@ var (
 )
 
 func main() {
-
-	log, err := zap.NewProduction()
+	logcfg := zap.NewProductionConfig()
+	logcfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	log, err := logcfg.Build()
 	if err != nil {
 		panic("cannot initialize zap")
 	}
