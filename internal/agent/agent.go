@@ -251,8 +251,13 @@ func (a *Agent) CollectMetrics() {
 		name := t.Field(i).Name
 
 		if name == "PollCount" {
-			delta := field.Int()
-			a.Metrics[name] = models.Metrics{ID: name, MType: models.Counter, Delta: &delta}
+			if existing, ok := a.Metrics[name]; ok && existing.Delta != nil {
+				newDelta := *existing.Delta + 1
+				a.Metrics[name] = models.Metrics{ID: name, MType: models.Counter, Delta: &newDelta}
+			} else {
+				initial := int64(1)
+				a.Metrics[name] = models.Metrics{ID: name, MType: models.Counter, Delta: &initial}
+			}
 			continue
 		}
 
