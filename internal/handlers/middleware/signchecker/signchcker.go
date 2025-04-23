@@ -39,7 +39,6 @@ func New(key string) func(next http.Handler) http.Handler {
 			next.ServeHTTP(rec, r)
 
 			signature := createHash(rec.body.Bytes(), key)
-			fmt.Println(signature)
 			w.Header().Set("HashSHA256", signature)
 			w.Write(rec.body.Bytes())
 		}
