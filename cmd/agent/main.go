@@ -17,7 +17,7 @@ func main() {
 	fmt.Println("Server URL:", agentFlags.ServerURL)
 	fmt.Println("Poll Interval:", agentFlags.PollInterval)
 	fmt.Println("Report Interval:", agentFlags.ReportInterval)
-	//log.Println("Key", a.Key)
+	log.Println("Key", agentFlags.Key)
 	log.Println("Agent started...")
 
 	agent := agent.NewAgent(agentFlags)
