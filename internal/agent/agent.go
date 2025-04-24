@@ -304,8 +304,7 @@ func (m *MetricsSnapshot) collectFlat(pollCount int64) {
 	m.PollCount = pollCount
 }
 
-func compressData(body []byte) ([]byte, error) {
-	data := body
+func compressData(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	if _, err := gz.Write(data); err != nil {
@@ -319,8 +318,8 @@ func compressData(body []byte) ([]byte, error) {
 }
 
 func createHash(data []byte, key string) string {
-	fmt.Println("agent", key)
-	fmt.Println(data)
+	// fmt.Println("agent", key)
+	// fmt.Println(data)
 	hash := hmac.New(sha256.New, []byte(key))
 	hash.Write(data)
 	return hex.EncodeToString(hash.Sum(nil))
