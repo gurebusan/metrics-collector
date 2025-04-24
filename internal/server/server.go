@@ -32,14 +32,11 @@ func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.Pin
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(mwLogger.New(log))
+	router.Use(mygzip.GzipMiddleware)
 	if flags.Key != "" {
-		router.Use(mygzip.GzipMiddleware)
 		router.Use(signchecker.New(flags.Key))
-		router.Use(gziprespose.GzipResponseMiddleware)
-	} else {
-		router.Use(mygzip.GzipMiddleware)
-		router.Use(gziprespose.GzipResponseMiddleware)
 	}
+	router.Use(gziprespose.GzipResponseMiddleware)
 
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", handlers.GetAllMetrics)
