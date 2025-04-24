@@ -218,7 +218,8 @@ func (a *Agent) SendMetricsBatch() error {
 		req.Header.Set("HashSHA256", hash)
 	}
 	req.Header.Set("Content-Type", "application/json")
-
+	fmt.Println("agent")
+	fmt.Println(string(body))
 	return retry(maxAttempts, delays, func() error {
 
 		resp, err := a.client.Do(req)
