@@ -304,10 +304,10 @@ func (m *MetricsSnapshot) collectFlat(pollCount int64) {
 	m.PollCount = pollCount
 }
 
-func compressData(data []byte) ([]byte, error) {
+func compressData(body []byte) ([]byte, error) {
+	data := body
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
-
 	if _, err := gz.Write(data); err != nil {
 		return nil, err
 	}
