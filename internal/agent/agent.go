@@ -319,7 +319,8 @@ func compressData(data []byte) ([]byte, error) {
 }
 
 func createHash(data []byte, key string) string {
-	fmt.Println(key)
+	fmt.Println("agent", key)
+	fmt.Println(data)
 	hash := hmac.New(sha256.New, []byte(key))
 	hash.Write(data)
 	return hex.EncodeToString(hash.Sum(nil))
