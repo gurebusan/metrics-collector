@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +23,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/models"
 )
 
@@ -30,12 +34,10 @@ var (
 
 // Структура агента
 type Agent struct {
-	ServerURL      string
-	PollInterval   time.Duration
-	ReportInterval time.Duration
-	Metrics        map[string]models.Metrics
-	PollCount      int64
-	client         http.Client
+	flags     *flags.AgentFlags
+	Metrics   map[string]models.Metrics
+	PollCount int64
+	client    http.Client
 	sync.RWMutex
 }
 
@@ -72,12 +74,10 @@ type MetricsSnapshot struct {
 }
 
 // Конструктор агента
-func NewAgent(serverURL string, pollInterval, reportInterval time.Duration) *Agent {
+func NewAgent(flags *flags.AgentFlags) *Agent {
 	return &Agent{
-		ServerURL:      serverURL,
-		PollInterval:   pollInterval,
-		ReportInterval: reportInterval,
-		Metrics:        make(map[string]models.Metrics),
+		flags:   flags,
+		Metrics: make(map[string]models.Metrics),
 		client: http.Client{
 			Timeout: 15 * time.Second,
 		},
@@ -93,7 +93,7 @@ func (a *Agent) Start(ctx context.Context) {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		ticker := time.NewTicker(a.PollInterval)
+		ticker := time.NewTicker(a.flags.PollInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -106,7 +106,7 @@ func (a *Agent) Start(ctx context.Context) {
 		}
 	}()
 	go func() {
-		ticker := time.NewTicker(a.ReportInterval)
+		ticker := time.NewTicker(a.flags.ReportInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -136,7 +136,7 @@ func (a *Agent) SendMetrics() error {
 	a.RLock()
 	defer a.RUnlock()
 
-	baseURL, err := url.Parse(a.ServerURL)
+	baseURL, err := url.Parse(a.flags.ServerURL)
 	if err != nil {
 		return fmt.Errorf("invalid server URL: %w", err)
 	}
@@ -185,7 +185,7 @@ func (a *Agent) SendMetricsBatch() error {
 		return nil
 	}
 
-	baseURL, err := url.Parse(a.ServerURL)
+	baseURL, err := url.Parse(a.flags.ServerURL)
 	if err != nil {
 		return fmt.Errorf("invalid server URL: %w", err)
 	}
@@ -213,8 +213,14 @@ func (a *Agent) SendMetricsBatch() error {
 	}
 
 	req.Header.Set("Content-Encoding", "gzip")
+	if a.flags.Key != "" {
+		hash := createHash(body, a.flags.Key)
+		req.Header.Set("HashSHA256", hash)
+	}
 	req.Header.Set("Content-Type", "application/json")
-
+	// fmt.Println(" AGENT BODY:", string(body))
+	// fmt.Printf(" AGENT RAW: %x\n", body)
+	// fmt.Println(" AGENT HASH:", createHash(body, a.flags.Key))
 	return retry(maxAttempts, delays, func() error {
 
 		resp, err := a.client.Do(req)
@@ -247,8 +253,13 @@ func (a *Agent) CollectMetrics() {
 		name := t.Field(i).Name
 
 		if name == "PollCount" {
-			delta := field.Int()
-			a.Metrics[name] = models.Metrics{ID: name, MType: models.Counter, Delta: &delta}
+			if existing, ok := a.Metrics[name]; ok && existing.Delta != nil {
+				newDelta := *existing.Delta + 1
+				a.Metrics[name] = models.Metrics{ID: name, MType: models.Counter, Delta: &newDelta}
+			} else {
+				initial := int64(1)
+				a.Metrics[name] = models.Metrics{ID: name, MType: models.Counter, Delta: &initial}
+			}
 			continue
 		}
 
@@ -298,7 +309,6 @@ func (m *MetricsSnapshot) collectFlat(pollCount int64) {
 func compressData(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
-
 	if _, err := gz.Write(data); err != nil {
 		return nil, err
 	}
@@ -307,6 +317,12 @@ func compressData(data []byte) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func createHash(data []byte, key string) string {
+	hash := hmac.New(sha256.New, []byte(key))
+	hash.Write(data)
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 func retry(maxAttempts int, delays []time.Duration, fn func() error) error {

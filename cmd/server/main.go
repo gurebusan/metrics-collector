@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
@@ -22,8 +23,10 @@ var (
 )
 
 func main() {
-
-	log, err := zap.NewProduction()
+	logcfg := zap.NewProductionConfig()
+	logcfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	//logcfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	log, err := logcfg.Build()
 	if err != nil {
 		panic("cannot initialize zap")
 	}
@@ -55,7 +58,7 @@ func main() {
 	serverUsecase := usecase.NewSeverUsecase(storage)
 	handlers := handlers.NewServerHandler(log, serverUsecase)
 	server := server.NewServer(log, handlers, pingHandler, serverFlags, bkp)
-
+	fmt.Println("Server key", serverFlags.Key)
 	server.Start(ctx)
 
 	if s, ok := storage.(*postgres.PgStorage); ok {

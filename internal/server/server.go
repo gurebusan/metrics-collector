@@ -8,12 +8,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/zetcan333/metrics-collector/internal/flags"
 	"github.com/zetcan333/metrics-collector/internal/handlers"
 	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/compressor/gziprespose"
 	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/compressor/mygzip"
 	mwLogger "github.com/zetcan333/metrics-collector/internal/handlers/middleware/logger"
+	"github.com/zetcan333/metrics-collector/internal/handlers/middleware/signchecker"
 	"github.com/zetcan333/metrics-collector/internal/handlers/ping"
 	"github.com/zetcan333/metrics-collector/internal/usecase/backup"
 	"go.uber.org/zap"
@@ -28,9 +30,12 @@ type Server struct {
 
 func NewServer(log *zap.Logger, handlers *handlers.ServerHandler, ping *ping.PingHandler, flags *flags.ServerFlags, backup *backup.BackupUsecase) *Server {
 	router := chi.NewRouter()
-
+	router.Use(middleware.RequestID)
 	router.Use(mwLogger.New(log))
 	router.Use(mygzip.GzipMiddleware)
+	if flags.Key != "" {
+		router.Use(signchecker.New(flags.Key))
+	}
 	router.Use(gziprespose.GzipResponseMiddleware)
 
 	router.Route("/", func(r chi.Router) {
@@ -77,6 +82,7 @@ func (s *Server) Start(ctx context.Context) {
 
 	go func() {
 		s.log.Sugar().Infoln("Starting server...")
+		s.log.Sugar().Infoln("Server key", s.flags.Key)
 		err := server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			s.log.Sugar().Fatalln("failed to start server", zap.Error(err))
