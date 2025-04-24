@@ -25,6 +25,8 @@ func New(key string) func(next http.Handler) http.Handler {
 				r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 				expectedHash := createHash(body, key)
+				fmt.Println(expectedHash)
+				fmt.Println(recievedHash)
 				if recievedHash != expectedHash {
 					w.WriteHeader(http.StatusBadRequest)
 					w.Write(body)
