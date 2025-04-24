@@ -16,8 +16,10 @@ func New(key string) func(next http.Handler) http.Handler {
 			recievedHash := r.Header.Get("HashSHA256")
 			if recievedHash != "" {
 				body, err := io.ReadAll(r.Body)
-				fmt.Println("server")
-				fmt.Println(string(body))
+				fmt.Println("📦 SERVER BODY:", string(body))
+				fmt.Printf("📦 SERVER RAW: %x\n", body)
+				fmt.Println("🔐 SERVER HASH:", createHash(body, key))
+
 				if err != nil {
 					w.WriteHeader(http.StatusBadRequest)
 					w.Write([]byte(`{"error":"Failed to read request body"}`))
